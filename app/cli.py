@@ -4,8 +4,8 @@ import json
 import sys
 
 from app import (
-    db, early_voting, election_detail, elections, notifications, polling_places,
-    region_elections, regions, vote_records,
+    candidates, db, early_voting, election_detail, elections, notifications,
+    polling_places, region_elections, regions, vote_records,
 )
 
 
@@ -135,6 +135,33 @@ def cmd_vote_record_mark(args, conn):
 
 def cmd_vote_record_list(args, conn):
     _print(vote_records.list_voted_elections(conn, args.region_id))
+
+
+def cmd_candidate_add(args, conn):
+    _print(candidates.add_candidate(
+        conn, election_id=args.election_id, name=args.name, party=args.party,
+        profile=args.profile, source_url=args.source_url,
+    ))
+
+
+def cmd_candidate_list(args, conn):
+    _print(candidates.list_candidates(conn, args.election_id))
+
+
+def cmd_gazette_set(args, conn):
+    _print(candidates.set_gazette(conn, args.election_id, args.content, args.source_url))
+
+
+def cmd_gazette_show(args, conn):
+    _print(candidates.get_gazette(conn, args.election_id))
+
+
+def cmd_result_set(args, conn):
+    _print(candidates.set_result(conn, args.candidate_id, args.votes, args.elected))
+
+
+def cmd_result_show(args, conn):
+    _print(candidates.get_results(conn, args.election_id))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -295,6 +322,47 @@ def build_parser() -> argparse.ArgumentParser:
     p = vote_record_sub.add_parser("list", help="投票済みの選挙・投票履歴を確認する")
     p.add_argument("region_id", type=int)
     p.set_defaults(func=cmd_vote_record_list)
+
+    candidate = sub.add_parser("candidate", help="候補者情報の確認（管理用登録を含む）")
+    candidate_sub = candidate.add_subparsers(dest="candidate_command", required=True)
+
+    p = candidate_sub.add_parser("add", help="候補者を登録する（管理用）")
+    p.add_argument("--election-id", type=int, required=True, dest="election_id")
+    p.add_argument("--name", required=True)
+    p.add_argument("--party", default=None)
+    p.add_argument("--profile", default=None)
+    p.add_argument("--source-url", default=None, dest="source_url")
+    p.set_defaults(func=cmd_candidate_add)
+
+    p = candidate_sub.add_parser("list", help="候補者一覧を確認する")
+    p.add_argument("election_id", type=int)
+    p.set_defaults(func=cmd_candidate_list)
+
+    gazette = sub.add_parser("gazette", help="選挙公報の確認（管理用登録を含む）")
+    gazette_sub = gazette.add_subparsers(dest="gazette_command", required=True)
+
+    p = gazette_sub.add_parser("set", help="選挙公報を登録・更新する（管理用）")
+    p.add_argument("election_id", type=int)
+    p.add_argument("--content", required=True)
+    p.add_argument("--source-url", required=True, dest="source_url")
+    p.set_defaults(func=cmd_gazette_set)
+
+    p = gazette_sub.add_parser("show", help="選挙公報を確認する")
+    p.add_argument("election_id", type=int)
+    p.set_defaults(func=cmd_gazette_show)
+
+    result = sub.add_parser("result", help="開票結果の確認（管理用登録を含む）")
+    result_sub = result.add_subparsers(dest="result_command", required=True)
+
+    p = result_sub.add_parser("set", help="候補者の開票結果を登録・更新する（管理用）")
+    p.add_argument("candidate_id", type=int)
+    p.add_argument("--votes", type=int, required=True)
+    p.add_argument("--elected", action="store_true")
+    p.set_defaults(func=cmd_result_set)
+
+    p = result_sub.add_parser("show", help="選挙の開票結果を確認する")
+    p.add_argument("election_id", type=int)
+    p.set_defaults(func=cmd_result_show)
 
     return parser
 
