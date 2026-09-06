@@ -3,7 +3,7 @@ import argparse
 import json
 import sys
 
-from app import db, election_detail, elections, region_elections, regions
+from app import db, election_detail, elections, notifications, region_elections, regions
 
 
 def _print(obj) -> None:
@@ -77,6 +77,30 @@ def cmd_my_elections_next(args, conn):
 
 def cmd_election_detail_show(args, conn):
     _print(election_detail.get_election_detail(conn, args.election_id))
+
+
+def cmd_notify_check(args, conn):
+    _print(notifications.notify_due(conn, args.region_id))
+
+
+def cmd_notify_list(args, conn):
+    _print(notifications.list_notifications(conn, args.region_id))
+
+
+def cmd_notify_setting_set(args, conn):
+    days_before = [int(d) for d in args.days_before.split(",")] if args.days_before else None
+    enabled = None
+    if args.enable:
+        enabled = True
+    elif args.disable:
+        enabled = False
+    _print(notifications.set_setting(
+        conn, args.region_id, args.type, enabled=enabled, days_before=days_before,
+    ))
+
+
+def cmd_notify_setting_show(args, conn):
+    _print(notifications.get_setting(conn, args.region_id, args.type))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -161,6 +185,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("election_id", type=int)
     p.set_defaults(func=cmd_election_detail_show)
+
+    notify = sub.add_parser("notify", help="投票日の通知")
+    notify_sub = notify.add_subparsers(dest="notify_command", required=True)
+
+    p = notify_sub.add_parser("check", help="通知タイミングが到来した選挙の通知を作成する")
+    p.add_argument("region_id", type=int)
+    p.set_defaults(func=cmd_notify_check)
+
+    p = notify_sub.add_parser("list", help="通知履歴を確認する")
+    p.add_argument("region_id", type=int)
+    p.set_defaults(func=cmd_notify_list)
+
+    p = notify_sub.add_parser("setting-show", help="通知設定を確認する")
+    p.add_argument("region_id", type=int)
+    p.add_argument("--type", default=notifications.ALL_TYPES,
+                    choices=sorted(elections.ELECTION_TYPES) + [notifications.ALL_TYPES])
+    p.set_defaults(func=cmd_notify_setting_show)
+
+    p = notify_sub.add_parser(
+        "setting-set", help="通知のON/OFF・通知タイミングを選挙種別ごとに変更する"
+    )
+    p.add_argument("region_id", type=int)
+    p.add_argument("--type", default=notifications.ALL_TYPES,
+                    choices=sorted(elections.ELECTION_TYPES) + [notifications.ALL_TYPES])
+    p.add_argument("--days-before", default=None, dest="days_before",
+                    help="カンマ区切りの通知タイミング（例: 7,1,0）")
+    group = p.add_mutually_exclusive_group()
+    group.add_argument("--enable", action="store_true")
+    group.add_argument("--disable", action="store_true")
+    p.set_defaults(func=cmd_notify_setting_set)
 
     return parser
 

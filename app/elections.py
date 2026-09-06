@@ -132,6 +132,16 @@ def log_fetch(conn: sqlite3.Connection, target: str, success: bool, message: str
     conn.commit()
 
 
+def finalize_past_elections(conn: sqlite3.Connection) -> list[dict]:
+    """投票日を過ぎた実施予定の選挙を終了扱いにし、通知対象から除外する。"""
+    today = date.today().isoformat()
+    rows = conn.execute(
+        "SELECT id FROM elections WHERE status = 'scheduled' AND vote_date < ?", (today,)
+    ).fetchall()
+    finalized = [set_election_status(conn, r["id"], "finished") for r in rows]
+    return finalized
+
+
 def list_fetch_failures(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute(
         "SELECT * FROM fetch_logs WHERE success = 0 ORDER BY created_at DESC"
