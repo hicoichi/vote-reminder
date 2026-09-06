@@ -3,7 +3,10 @@ import argparse
 import json
 import sys
 
-from app import db, early_voting, election_detail, elections, notifications, polling_places, region_elections, regions
+from app import (
+    db, early_voting, election_detail, elections, notifications, polling_places,
+    region_elections, regions, vote_records,
+)
 
 
 def _print(obj) -> None:
@@ -124,6 +127,14 @@ def cmd_early_voting_add(args, conn):
 
 def cmd_early_voting_show(args, conn):
     _print(early_voting.list_early_voting_places_for_region(conn, args.region_id, args.election_id))
+
+
+def cmd_vote_record_mark(args, conn):
+    _print(vote_records.mark_voted(conn, args.region_id, args.election_id))
+
+
+def cmd_vote_record_list(args, conn):
+    _print(vote_records.list_voted_elections(conn, args.region_id))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -272,6 +283,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("region_id", type=int)
     p.add_argument("election_id", type=int)
     p.set_defaults(func=cmd_early_voting_show)
+
+    vote_record = sub.add_parser("vote-record", help="投票済みの記録・確認")
+    vote_record_sub = vote_record.add_subparsers(dest="vote_record_command", required=True)
+
+    p = vote_record_sub.add_parser("mark", help="「投票した」と記録する")
+    p.add_argument("region_id", type=int)
+    p.add_argument("election_id", type=int)
+    p.set_defaults(func=cmd_vote_record_mark)
+
+    p = vote_record_sub.add_parser("list", help="投票済みの選挙・投票履歴を確認する")
+    p.add_argument("region_id", type=int)
+    p.set_defaults(func=cmd_vote_record_list)
 
     return parser
 
