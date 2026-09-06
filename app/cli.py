@@ -3,7 +3,7 @@ import argparse
 import json
 import sys
 
-from app import db, election_detail, elections, notifications, polling_places, region_elections, regions
+from app import db, early_voting, election_detail, elections, notifications, polling_places, region_elections, regions
 
 
 def _print(obj) -> None:
@@ -112,6 +112,18 @@ def cmd_polling_place_add(args, conn):
 
 def cmd_polling_place_show(args, conn):
     _print(polling_places.get_polling_place_for_region(conn, args.region_id))
+
+
+def cmd_early_voting_add(args, conn):
+    _print(early_voting.add_early_voting_place(
+        conn, election_id=args.election_id, name=args.name, address=args.address,
+        period_start=args.period_start, period_end=args.period_end,
+        open_time=args.open_time, close_time=args.close_time,
+    ))
+
+
+def cmd_early_voting_show(args, conn):
+    _print(early_voting.list_early_voting_places_for_region(conn, args.region_id, args.election_id))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -242,6 +254,24 @@ def build_parser() -> argparse.ArgumentParser:
     p = polling_place_sub.add_parser("show", help="登録地域に対応する投票所を確認する")
     p.add_argument("region_id", type=int)
     p.set_defaults(func=cmd_polling_place_show)
+
+    early_voting_p = sub.add_parser("early-voting", help="期日前投票の確認（管理用登録を含む）")
+    early_voting_sub = early_voting_p.add_subparsers(dest="early_voting_command", required=True)
+
+    p = early_voting_sub.add_parser("add", help="期日前投票所を登録する（管理用）")
+    p.add_argument("--election-id", type=int, required=True, dest="election_id")
+    p.add_argument("--name", required=True)
+    p.add_argument("--address", required=True)
+    p.add_argument("--period-start", required=True, dest="period_start")
+    p.add_argument("--period-end", required=True, dest="period_end")
+    p.add_argument("--open-time", default="08:30", dest="open_time")
+    p.add_argument("--close-time", default="20:00", dest="close_time")
+    p.set_defaults(func=cmd_early_voting_add)
+
+    p = early_voting_sub.add_parser("show", help="期日前投票の期間・投票所を確認する")
+    p.add_argument("region_id", type=int)
+    p.add_argument("election_id", type=int)
+    p.set_defaults(func=cmd_early_voting_show)
 
     return parser
 
