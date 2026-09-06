@@ -35,34 +35,42 @@ v0.1（MVP）の完了条件は[ユーザーストーリーマップ内のDefini
 
 **本プロジェクトは試しに作るPoC（概念実証）であり、作り込みは行っていません。** 詳細は[.claude/CLAUDE.md](.claude/CLAUDE.md)を参照してください。
 
-EPIC-01〜10のユーザーストーリーをPythonのCLIアプリケーションとして実装済みです。フロントエンドや実際の通知配信（メール/プッシュ）、外部の選挙データ連携は行っておらず、CLIとSQLiteによるデータモデル・ロジックの検証にとどまります。
+EPIC-01〜10のユーザーストーリーをVue 3のSPA（Single Page Application）として実装済みです。バックエンドは持たず、フロントエンドだけで完結する構成です。
+
+* データはブラウザの`localStorage`に保存します（サーバー・DBは持ちません）。
+* 郵便番号から自治体を特定する処理は[zipcloud API](http://zipcloud.ibsnet.co.jp/doc/api)をJSONPで直接呼び出しています。
+* 選挙・投票所・候補者などのデータは、外部連携ではなく画面（`/#/admin`）から手入力で登録します。
 
 ### セットアップ・実行方法
 
-Python 3.12（標準ライブラリのみ、追加インストール不要）で動作します。
+Node.js 20以降で動作します。
 
 ```bash
-# 地域を登録する（郵便番号 → 自治体をzipcloud APIで特定）
-python3 -m app.cli region register 100-0001
-
-# 登録地域に関係する選挙を確認する（選挙情報はadminコマンドで別途登録する）
-python3 -m app.cli my-elections list 1
-python3 -m app.cli my-elections next 1
-
-# 通知タイミングが到来した選挙の通知を作成する
-python3 -m app.cli notify check 1
-
-# 「投票した」と記録する
-python3 -m app.cli vote-record mark 1 1
+npm install
+npm run dev
 ```
 
-全コマンドは `python3 -m app.cli --help` で確認できます。DBファイルは既定で `data/vote_reminder.db`（`VOTE_REMINDER_DB` 環境変数で変更可）に作成されます。
+起動後、表示されたURL（既定は http://localhost:5173 ）をブラウザで開いてください。
+
+* トップページ（`/`）: 郵便番号を登録する
+* マイページ（`/#/region/:id`）: 次回の選挙・通知設定・投票所・期日前投票・投票記録・候補者情報・選挙履歴を確認する
+* 選挙データ管理（`/#/admin`）: 選挙・投票所・期日前投票所・候補者・選挙公報・開票結果を登録する（本来は選挙管理者が行う想定のデータ登録を、バックエンドがないためこの画面から行う）
+
+### ビルド
+
+```bash
+npm run build
+```
+
+`dist/`に静的ファイルが出力されます。バックエンドを持たないため、任意の静的ホスティングにそのまま配置できます。
 
 ### テスト
 
 ```bash
-python3 -m unittest discover -s tests
+npm run test
 ```
+
+`src/logic/`配下の業務ロジック（地域登録・選挙判定・通知・投票所・期日前投票・投票記録・候補者/公報/結果・履歴）について、主要な正常系をVitestで検証しています。
 
 ## ライセンス
 
