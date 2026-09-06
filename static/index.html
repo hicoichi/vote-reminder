@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vote-reminder</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 1rem 3rem;
+    font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+    background: #f6f7f9; color: #1f2430;
+  }
+  header { max-width: 960px; margin: 0 auto; padding: 1.5rem 0 0.5rem; }
+  header h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+  header p { margin: 0; color: #666; font-size: 0.9rem; }
+  main { max-width: 960px; margin: 0 auto; }
+  .card {
+    background: #fff; border: 1px solid #e2e5ea; border-radius: 10px;
+    padding: 1rem 1.25rem; margin-bottom: 1rem;
+  }
+  .card h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
+  .card h3 { margin: 1rem 0 0.5rem; font-size: 0.95rem; color: #444; }
+  .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.5rem; }
+  label { font-size: 0.85rem; color: #444; display: block; margin-bottom: 0.2rem; }
+  input, select, textarea {
+    padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem;
+    font-family: inherit;
+  }
+  textarea { width: 100%; min-height: 4rem; }
+  button {
+    padding: 0.45rem 0.9rem; border-radius: 6px; border: 1px solid #2c5edb;
+    background: #2c5edb; color: #fff; font-size: 0.9rem; cursor: pointer;
+  }
+  button.secondary { background: #fff; color: #2c5edb; }
+  button:hover { opacity: 0.9; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; margin-top: 0.5rem; }
+  th, td { border-bottom: 1px solid #eee; padding: 0.4rem 0.5rem; text-align: left; }
+  tr.selectable { cursor: pointer; }
+  tr.selectable:hover { background: #f0f4ff; }
+  tr.current { background: #e8f0ff; }
+  .tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .tabs button { background: #fff; color: #333; border: 1px solid #ccc; }
+  .tabs button.active { background: #2c5edb; color: #fff; border-color: #2c5edb; }
+  .tabpanel { display: none; }
+  .tabpanel.active { display: block; }
+  pre.result {
+    background: #10131a; color: #d7e6ff; padding: 0.6rem 0.8rem; border-radius: 6px;
+    font-size: 0.78rem; overflow-x: auto; max-height: 260px; white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.75rem; background: #eef2ff; color: #2c5edb; }
+  .muted { color: #888; font-size: 0.85rem; }
+  .status-line { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  details.admin { max-width: 960px; margin: 0 auto 2rem; }
+  details.admin > summary { cursor: pointer; font-weight: bold; padding: 0.5rem 0; }
+  fieldset { border: 1px solid #e2e5ea; border-radius: 8px; margin-bottom: 1rem; }
+  legend { font-size: 0.9rem; font-weight: bold; padding: 0 0.4rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>vote-reminder</h1>
+  <p>「投票日を知らなかった」をなくす — PoC操作画面</p>
+</header>
+
+<main>
+
+  <section class="card" id="region-card">
+    <h2>地域登録（EPIC-01）</h2>
+    <div class="row">
+      <div>
+        <label>郵便番号</label>
+        <input id="zipcode-input" placeholder="100-0001">
+      </div>
+      <button id="btn-register-region">登録する</button>
+    </div>
+    <div class="row">
+      <div>
+        <label>地域ID（既存の地域を読み込む）</label>
+        <input id="region-id-input" type="number" style="width:6rem">
+      </div>
+      <button class="secondary" id="btn-load-region">読み込む</button>
+      <button class="secondary" id="btn-update-region">この郵便番号に変更</button>
+      <button class="secondary" id="btn-delete-region">削除</button>
+    </div>
+    <div id="region-status" class="status-line muted">地域は未登録です</div>
+  </section>
+
+  <div class="tabs">
+    <button data-tab="my-elections" class="active">自分の選挙</button>
+    <button data-tab="polling">投票所</button>
+    <button data-tab="early-voting">期日前投票</button>
+    <button data-tab="notify">通知</button>
+    <button data-tab="vote-record">投票記録</button>
+    <button data-tab="candidates">候補者・公報・結果</button>
+    <button data-tab="history">履歴</button>
+  </div>
+
+  <section class="tabpanel active" data-panel="my-elections">
+    <div class="card">
+      <h2>自分に関係する選挙（EPIC-02・03）</h2>
+      <div class="row">
+        <div>
+          <label>種別で絞り込み</label>
+          <select id="election-type-filter"><option value="">すべて</option></select>
+        </div>
+        <button id="btn-list-my-elections">一覧を取得</button>
+        <button class="secondary" id="btn-next-election">次回の選挙を判定</button>
+      </div>
+      <div id="next-election-box"></div>
+      <table id="my-elections-table">
+        <thead><tr><th>選挙名</th><th>種別</th><th>投票日</th><th>残り日数</th><th>状態</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="muted">行をクリックすると「選択中の選挙」として他のタブで使えます。現在選択中: <span id="current-election-label">なし</span></p>
+    </div>
+  </section>
+
+  <section class="tabpanel" data-panel="polling">
+    <div class="card">
+      <h2>投票所（EPIC-05）</h2>
+      <button id="btn-show-polling-place">投票所を確認</button>
+      <div id="polling-place-box"></div>
+    </div>
+  </section>
+
+  <section class="tabpanel" data-panel="early-voting">
+    <div class="card">
+      <h2>期日前投票（EPIC-06）</h2>
+      <p class="muted">「自分の選挙」タブで選挙を選択してから確認してください。</p>
+      <button id="btn-show-early-voting">期日前投票を確認</button>
+      <table id="early-voting-table">
+        <thead><tr><th>投票所</th><th>住所</th><th>期間</th><th>受付時間</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="tabpanel" data-panel="notify">
+    <div class="card">
+      <h2>投票日の通知（EPIC-04）</h2>
+      <div class="row">
+        <button id="btn-notify-check">通知チェックを実行</button>
+        <button class="secondary" id="btn-notify-list">通知履歴を取得</button>
+      </div>
+      <table id="notify-table">
+        <thead><tr><th>種別</th><th>タイミング</th><th>メッセージ</th><th>送信日時</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <h3>通知設定</h3>
+      <div class="row">
+        <div>
+          <label>対象選挙種別</label>
+          <select id="notify-setting-type"><option value="*">すべて（共通設定）</option></select>
+        </div>
+        <button class="secondary" id="btn-notify-setting-load">設定を読み込む</button>
+      </div>
+      <div class="row">
+        <div>
+          <label>通知</label>
+          <select id="notify-setting-enabled"><option value="true">ON</option><option value="false">OFF</option></select>
+        </div>
+        <div>
+          <label>通知タイミング（投票日の何日前、カンマ区切り）</label>
+          <input id="notify-setting-days" placeholder="7,1,0">
+        </div>
+        <button id="btn-notify-setting-save">保存する</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="tabpanel" data-panel="vote-record">
+    <div class="card">
+      <h2>投票済みの記録（EPIC-07）</h2>
+      <div class="row">
+        <button id="btn-mark-voted">選択中の選挙を「投票した」と記録</button>
+        <button class="secondary" id="btn-list-voted">投票済み一覧を取得</button>
+      </div>
+      <table id="voted-table">
+        <thead><tr><th>選挙名</th><th>投票日</th><th>記録日時</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="tabpanel" data-panel="candidates">
+    <div class="card">
+      <h2>候補者・選挙公報・開票結果（EPIC-09）</h2>
+      <p class="muted">「自分の選挙」タブで選挙を選択してから確認してください。</p>
+      <div class="row">
+        <button id="btn-list-candidates">候補者一覧</button>
+        <button class="secondary" id="btn-show-gazette">選挙公報</button>
+        <button class="secondary" id="btn-show-results">開票結果</button>
+      </div>
+      <div id="candidates-box"></div>
+    </div>
+  </section>
+
+  <section class="tabpanel" data-panel="history">
+    <div class="card">
+      <h2>選挙履歴（EPIC-10）</h2>
+      <div class="row">
+        <button id="btn-history-elections">過去の選挙一覧</button>
+        <button class="secondary" id="btn-history-votes">自分の投票済み履歴</button>
+      </div>
+      <table id="history-table">
+        <thead><tr><th>選挙名</th><th>種別</th><th>投票日</th><th>状態</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<details class="admin">
+  <summary>管理者用: 選挙・投票所などのデータ登録（EPIC-08）</summary>
+
+  <fieldset>
+    <legend>選挙を登録</legend>
+    <form id="form-election-add">
+      <div class="row">
+        <div><label>選挙名</label><input name="name" required></div>
+        <div><label>種別</label><select name="election_type" id="election-type-select" required></select></div>
+      </div>
+      <div class="row">
+        <div><label>都道府県（国政選挙は空欄）</label><input name="prefecture"></div>
+        <div><label>市区町村（都道府県レベルの選挙は空欄）</label><input name="city"></div>
+      </div>
+      <div class="row">
+        <div><label>公示日・告示日</label><input type="date" name="announcement_date" required></div>
+        <div><label>投票日</label><input type="date" name="vote_date" required></div>
+      </div>
+      <div class="row">
+        <div><label>投票開始時間</label><input name="vote_start_time" value="07:00"></div>
+        <div><label>投票終了時間</label><input name="vote_end_time" value="20:00"></div>
+      </div>
+      <div class="row"><div style="flex:1"><label>出典URL</label><input name="source_url" required style="width:100%"></div></div>
+      <button type="submit">登録する</button>
+    </form>
+    <pre class="result" id="result-election-add" hidden></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>選挙を更新（投票日変更・出典更新）</legend>
+    <form id="form-election-update">
+      <div class="row">
+        <div><label>選挙ID</label><input name="election_id" type="number" required style="width:6rem"></div>
+        <div><label>新しい投票日（変更する場合）</label><input type="date" name="vote_date"></div>
+        <div><label>新しい公示日・告示日（変更する場合）</label><input type="date" name="announcement_date"></div>
+      </div>
+      <div class="row"><div style="flex:1"><label>出典URL</label><input name="source_url" required style="width:100%"></div></div>
+      <button type="submit">更新する</button>
+    </form>
+    <pre class="result" id="result-election-update" hidden></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>選挙のステータス変更（中止・延期・終了）</legend>
+    <form id="form-election-status">
+      <div class="row">
+        <div><label>選挙ID</label><input name="election_id" type="number" required style="width:6rem"></div>
+        <div><label>ステータス</label>
+          <select name="status">
+            <option value="scheduled">scheduled（実施予定）</option>
+            <option value="postponed">postponed（延期）</option>
+            <option value="cancelled">cancelled（中止）</option>
+            <option value="finished">finished（終了）</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit">変更する</button>
+    </form>
+    <pre class="result" id="result-election-status" hidden></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>投票所を登録</legend>
+    <form id="form-polling-place-add">
+      <div class="row">
+        <div><label>都道府県</label><input name="prefecture" required></div>
+        <div><label>市区町村</label><input name="city" required></div>
+        <div><label>投票所名</label><input name="name" required></div>
+      </div>
+      <div class="row">
+        <div style="flex:1"><label>住所</label><input name="address" required style="width:100%"></div>
+        <div><label>開始時間</label><input name="open_time" value="07:00"></div>
+        <div><label>終了時間</label><input name="close_time" value="20:00"></div>
+      </div>
+      <button type="submit">登録する</button>
+    </form>
+    <pre class="result" id="result-polling-place-add" hidden></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>期日前投票所を登録</legend>
+    <form id="form-early-voting-add">
+      <div class="row">
+        <div><label>選挙ID</label><input name="election_id" type="number" required style="width:6rem"></div>
+        <div><label>投票所名</label><input name="name" required></div>
+      </div>
+      <div class="row"><div style="flex:1"><label>住所</label><input name="address" required style="width:100%"></div></div>
+      <div class="row">
+        <div><label>期間開始</label><input type="date" name="period_start" required></div>
+        <div><label>期間終了</label><input type="date" name="period_end" required></div>
+        <div><label>受付開始</label><input name="open_time" value="08:30"></div>
+        <div><label>受付終了</label><input name="close_time" value="20:00"></div>
+      </div>
+      <button type="submit">登録する</button>
+    </form>
+    <pre class="result" id="result-early-voting-add" hidden></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>候補者を登録</legend>
+    <form id="form-candidate-add">
+      <div class="row">
+        <div><label>選挙ID</label><input name="election_id" type="number" required style="width:6rem"></div>
+        <div><label>氏名</label><input name="name" required></div>
+        <div><label>所属政党</label><input name="party"></div>
+      </div>
+      <div class="row">
+        <div style="flex:1"><label>プロフィール</label><input name="profile" style="width:100%"></div>
+        <div style="flex:1"><label>情報源URL</label><input name="source_url" style="width:100%"></div>
+      </div>
+      <button type="submit">登録する</button>
+    </form>
+    <pre class="result" id="result-candidate-add" hidden></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>選挙公報を登録・更新</legend>
+    <form id="form-gazette-set">
+      <div class="row"><div><label>選挙ID</label><input name="election_id" type="number" required style="width:6rem"></div></div>
+      <div class="row"><div style="flex:1"><label>内容</label><textarea name="content" required></textarea></div></div>
+      <div class="row"><div style="flex:1"><label>出典URL</label><input name="source_url" required style="width:100%"></div></div>
+      <button type="submit">登録する</button>
+    </form>
+    <pre class="result" id="result-gazette-set" hidden></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>開票結果を登録</legend>
+    <form id="form-result-set">
+      <div class="row">
+        <div><label>候補者ID</label><input name="candidate_id" type="number" required style="width:6rem"></div>
+        <div><label>得票数</label><input name="votes" type="number" required style="width:8rem"></div>
+        <div><label>当選</label>
+          <select name="elected"><option value="false">落選</option><option value="true">当選</option></select>
+        </div>
+      </div>
+      <button type="submit">登録する</button>
+    </form>
+    <pre class="result" id="result-result-set" hidden></pre>
+  </fieldset>
+
+</details>
+
+<script>
+const ELECTION_TYPES = [
+  "衆議院議員選挙", "参議院議員選挙", "都道府県知事選挙", "市区町村長選挙",
+  "都道府県議会議員選挙", "市区町村議会議員選挙", "補欠選挙", "再選挙",
+];
+
+let state = {
+  regionId: Number(localStorage.getItem("vr_region_id")) || null,
+  electionId: Number(localStorage.getItem("vr_election_id")) || null,
+};
+
+function setRegionId(id) {
+  state.regionId = id;
+  localStorage.setItem("vr_region_id", id ?? "");
+}
+function setElectionId(id) {
+  state.electionId = id;
+  localStorage.setItem("vr_election_id", id ?? "");
+  document.getElementById("current-election-label").textContent = id ? `選挙ID ${id}` : "なし";
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (body !== undefined) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTPエラー: ${res.status}`);
+  return data;
+}
+
+function requireRegion() {
+  if (!state.regionId) { alert("先に地域を登録・読み込みしてください"); throw new Error("no region"); }
+  return state.regionId;
+}
+function requireElection() {
+  if (!state.electionId) { alert("先に「自分の選挙」タブで選挙を選択してください"); throw new Error("no election"); }
+  return state.electionId;
+}
+
+function fillOptions(select, extra) {
+  ELECTION_TYPES.forEach(t => {
+    const opt = document.createElement("option");
+    opt.value = t; opt.textContent = t;
+    select.appendChild(opt);
+  });
+  if (extra) {
+    extra.forEach(([v, label]) => {
+      const opt = document.createElement("option");
+      opt.value = v; opt.textContent = label;
+      select.insertBefore(opt, select.firstChild.nextSibling);
+    });
+  }
+}
+fillOptions(document.getElementById("election-type-filter"));
+fillOptions(document.getElementById("election-type-select"));
+fillOptions(document.getElementById("notify-setting-type"));
+
+// --- タブ切り替え ---
+document.querySelectorAll(".tabs button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tabpanel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelector(`.tabpanel[data-panel="${btn.dataset.tab}"]`).classList.add("active");
+  });
+});
+
+// --- 地域登録 ---
+function renderRegionStatus(region) {
+  const box = document.getElementById("region-status");
+  if (!region) { box.textContent = "地域は未登録です"; return; }
+  box.innerHTML = `地域ID <b>${region.id}</b>: ${region.prefecture}${region.city}${region.town ?? ""}（郵便番号 ${region.zipcode}）`;
+}
+
+document.getElementById("btn-register-region").addEventListener("click", async () => {
+  try {
+    const region = await api("POST", "/api/regions", { zipcode: document.getElementById("zipcode-input").value });
+    setRegionId(region.id);
+    document.getElementById("region-id-input").value = region.id;
+    renderRegionStatus(region);
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-load-region").addEventListener("click", async () => {
+  const id = Number(document.getElementById("region-id-input").value);
+  if (!id) return alert("地域IDを入力してください");
+  try {
+    const region = await api("GET", `/api/regions/${id}`);
+    setRegionId(region.id);
+    renderRegionStatus(region);
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-update-region").addEventListener("click", async () => {
+  const id = requireRegion();
+  try {
+    const region = await api("PUT", `/api/regions/${id}`, { zipcode: document.getElementById("zipcode-input").value });
+    renderRegionStatus(region);
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-delete-region").addEventListener("click", async () => {
+  const id = requireRegion();
+  if (!confirm(`地域ID ${id} を削除しますか？`)) return;
+  try {
+    await api("DELETE", `/api/regions/${id}`);
+    setRegionId(null);
+    renderRegionStatus(null);
+  } catch (e) { alert(e.message); }
+});
+
+if (state.regionId) {
+  api("GET", `/api/regions/${state.regionId}`).then(renderRegionStatus).catch(() => setRegionId(null));
+  document.getElementById("region-id-input").value = state.regionId;
+}
+setElectionId(state.electionId);
+
+// --- 自分の選挙 ---
+function renderElectionsTable(tbodyId, elections, { selectable, showStatus } = {}) {
+  const tbody = document.querySelector(`#${tbodyId} tbody`);
+  tbody.innerHTML = "";
+  elections.forEach(e => {
+    const tr = document.createElement("tr");
+    if (selectable) tr.classList.add("selectable");
+    if (state.electionId === e.id) tr.classList.add("current");
+    tr.innerHTML = `<td>${e.name}</td><td>${e.election_type}</td><td>${e.vote_date}</td>` +
+      (("days_until_vote" in e) ? `<td>${e.days_until_vote}日</td>` : "") +
+      (showStatus ? `<td><span class="badge">${e.status}</span></td>` : "");
+    if (selectable) tr.addEventListener("click", () => {
+      setElectionId(e.id);
+      document.querySelectorAll("#my-elections-table tr").forEach(r => r.classList.remove("current"));
+      tr.classList.add("current");
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById("btn-list-my-elections").addEventListener("click", async () => {
+  const id = requireRegion();
+  const type = document.getElementById("election-type-filter").value;
+  try {
+    const list = await api("GET", `/api/regions/${id}/elections${type ? `?type=${encodeURIComponent(type)}` : ""}`);
+    const withDays = await Promise.all(list.map(e => api("GET", `/api/elections/${e.id}`)));
+    renderElectionsTable("my-elections-table", withDays, { selectable: true, showStatus: true });
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-next-election").addEventListener("click", async () => {
+  const id = requireRegion();
+  try {
+    const next = await api("GET", `/api/regions/${id}/elections/next`);
+    const box = document.getElementById("next-election-box");
+    if (!next) { box.innerHTML = `<p class="muted">次回の選挙は登録されていません</p>`; return; }
+    const detail = await api("GET", `/api/elections/${next.id}`);
+    setElectionId(detail.id);
+    box.innerHTML = `<div class="card" style="background:#f0f4ff"><h3 style="margin-top:0">${detail.name}</h3>
+      <p>種別: ${detail.election_type} ／ 投票日: ${detail.vote_date}（あと${detail.days_until_vote}日）</p>
+      <p>公示日・告示日: ${detail.announcement_date} ／ 投票時間: ${detail.vote_start_time}〜${detail.vote_end_time}</p></div>`;
+  } catch (e) { alert(e.message); }
+});
+
+// --- 投票所 ---
+document.getElementById("btn-show-polling-place").addEventListener("click", async () => {
+  const id = requireRegion();
+  try {
+    const place = await api("GET", `/api/regions/${id}/polling-place`);
+    const box = document.getElementById("polling-place-box");
+    if (!place) { box.innerHTML = `<p class="muted">この地域の投票所は未登録です（管理者用フォームから登録してください）</p>`; return; }
+    box.innerHTML = `<h3>${place.name}</h3><p>住所: ${place.address}</p>
+      <p>投票時間: ${place.open_time}〜${place.close_time}</p>
+      <p><a href="${place.map_url}" target="_blank" rel="noopener">地図で見る</a> ／ <a href="${place.route_url}" target="_blank" rel="noopener">経路を調べる</a></p>`;
+  } catch (e) { alert(e.message); }
+});
+
+// --- 期日前投票 ---
+document.getElementById("btn-show-early-voting").addEventListener("click", async () => {
+  const rid = requireRegion(); const eid = requireElection();
+  try {
+    const places = await api("GET", `/api/regions/${rid}/elections/${eid}/early-voting`);
+    const tbody = document.querySelector("#early-voting-table tbody");
+    tbody.innerHTML = "";
+    places.forEach(p => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${p.name}</td><td>${p.address}</td><td>${p.period_start}〜${p.period_end}</td><td>${p.open_time}〜${p.close_time}</td>`;
+      tbody.appendChild(tr);
+    });
+    if (places.length === 0) tbody.innerHTML = `<tr><td colspan="4" class="muted">登録されている期日前投票所はありません</td></tr>`;
+  } catch (e) { alert(e.message); }
+});
+
+// --- 通知 ---
+document.getElementById("btn-notify-check").addEventListener("click", async () => {
+  const id = requireRegion();
+  try {
+    const created = await api("POST", `/api/regions/${id}/notify/check`);
+    alert(created.length ? `${created.length}件の通知を作成しました` : "通知タイミングが到来した選挙はありません");
+    document.getElementById("btn-notify-list").click();
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-notify-list").addEventListener("click", async () => {
+  const id = requireRegion();
+  try {
+    const list = await api("GET", `/api/regions/${id}/notifications`);
+    const tbody = document.querySelector("#notify-table tbody");
+    tbody.innerHTML = "";
+    list.forEach(n => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${n.notify_type}</td><td>${n.notify_type === "d0" ? "当日" : n.notify_type.replace("d", "") + "日前"}</td><td>${n.message}</td><td>${n.sent_at}</td>`;
+      tbody.appendChild(tr);
+    });
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-notify-setting-load").addEventListener("click", async () => {
+  const id = requireRegion();
+  const type = document.getElementById("notify-setting-type").value;
+  try {
+    const setting = await api("GET", `/api/regions/${id}/notify-settings?type=${encodeURIComponent(type)}`);
+    document.getElementById("notify-setting-enabled").value = String(setting.enabled);
+    document.getElementById("notify-setting-days").value = setting.days_before.join(",");
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-notify-setting-save").addEventListener("click", async () => {
+  const id = requireRegion();
+  const type = document.getElementById("notify-setting-type").value;
+  try {
+    await api("PUT", `/api/regions/${id}/notify-settings`, {
+      election_type: type,
+      enabled: document.getElementById("notify-setting-enabled").value === "true",
+      days_before: document.getElementById("notify-setting-days").value,
+    });
+    alert("通知設定を保存しました");
+  } catch (e) { alert(e.message); }
+});
+
+// --- 投票記録 ---
+document.getElementById("btn-mark-voted").addEventListener("click", async () => {
+  const rid = requireRegion(); const eid = requireElection();
+  try {
+    await api("POST", `/api/regions/${rid}/vote-records`, { election_id: eid });
+    alert("記録しました");
+    document.getElementById("btn-list-voted").click();
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-list-voted").addEventListener("click", async () => {
+  const id = requireRegion();
+  try {
+    const list = await api("GET", `/api/regions/${id}/vote-records`);
+    const tbody = document.querySelector("#voted-table tbody");
+    tbody.innerHTML = "";
+    list.forEach(v => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${v.name}</td><td>${v.vote_date}</td><td>${v.voted_at}</td>`;
+      tbody.appendChild(tr);
+    });
+  } catch (e) { alert(e.message); }
+});
+
+// --- 候補者・選挙公報・開票結果 ---
+document.getElementById("btn-list-candidates").addEventListener("click", async () => {
+  const eid = requireElection();
+  try {
+    const list = await api("GET", `/api/elections/${eid}/candidates`);
+    const box = document.getElementById("candidates-box");
+    box.innerHTML = "<h3>候補者一覧</h3>" + (list.length ? `<table><thead><tr><th>氏名</th><th>政党</th><th>プロフィール</th><th>情報源</th></tr></thead><tbody>${
+      list.map(c => `<tr><td>${c.name}</td><td>${c.party ?? ""}</td><td>${c.profile ?? ""}</td><td>${c.source_url ? `<a href="${c.source_url}" target="_blank" rel="noopener">link</a>` : ""}</td></tr>`).join("")
+    }</tbody></table>` : `<p class="muted">候補者は未登録です</p>`);
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-show-gazette").addEventListener("click", async () => {
+  const eid = requireElection();
+  try {
+    const gazette = await api("GET", `/api/elections/${eid}/gazette`);
+    const box = document.getElementById("candidates-box");
+    box.innerHTML = gazette ? `<h3>選挙公報</h3><p>${gazette.content}</p><p class="muted">出典: <a href="${gazette.source_url}" target="_blank" rel="noopener">${gazette.source_url}</a></p>`
+      : `<p class="muted">選挙公報は未登録です</p>`;
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-show-results").addEventListener("click", async () => {
+  const eid = requireElection();
+  try {
+    const results = await api("GET", `/api/elections/${eid}/results`);
+    const box = document.getElementById("candidates-box");
+    box.innerHTML = "<h3>開票結果</h3>" + (results.length ? `<table><thead><tr><th>氏名</th><th>得票数</th><th>当選</th></tr></thead><tbody>${
+      results.map(r => `<tr><td>${r.name}</td><td>${r.votes ?? "未集計"}</td><td>${r.elected ? "当選" : ""}</td></tr>`).join("")
+    }</tbody></table>` : `<p class="muted">開票結果はまだありません</p>`);
+  } catch (e) { alert(e.message); }
+});
+
+// --- 履歴 ---
+document.getElementById("btn-history-elections").addEventListener("click", async () => {
+  const id = requireRegion();
+  try {
+    const list = await api("GET", `/api/regions/${id}/history/elections`);
+    renderElectionsTable("history-table", list, { selectable: true, showStatus: true });
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("btn-history-votes").addEventListener("click", async () => {
+  const id = requireRegion();
+  try {
+    const list = await api("GET", `/api/regions/${id}/history/votes`);
+    renderElectionsTable("history-table", list, { selectable: true, showStatus: true });
+  } catch (e) { alert(e.message); }
+});
+
+// --- 管理者用フォーム ---
+function bindForm(formId, resultId, { method, path, transform, onSuccess }) {
+  const form = document.getElementById(formId);
+  const result = document.getElementById(resultId);
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
+    const body = transform ? transform(data) : data;
+    try {
+      const res = await api(method, typeof path === "function" ? path(data) : path, body);
+      result.hidden = false;
+      result.textContent = JSON.stringify(res, null, 2);
+      if (onSuccess) onSuccess(res);
+    } catch (e) {
+      result.hidden = false;
+      result.textContent = `エラー: ${e.message}`;
+    }
+  });
+}
+
+bindForm("form-election-add", "result-election-add", {
+  method: "POST", path: "/api/elections",
+  onSuccess: (res) => setElectionId(res.id),
+});
+bindForm("form-election-update", "result-election-update", {
+  method: "PUT", path: (d) => `/api/elections/${d.election_id}`,
+});
+bindForm("form-election-status", "result-election-status", {
+  method: "PUT", path: (d) => `/api/elections/${d.election_id}/status`,
+});
+bindForm("form-polling-place-add", "result-polling-place-add", {
+  method: "POST", path: "/api/polling-places",
+});
+bindForm("form-early-voting-add", "result-early-voting-add", {
+  method: "POST", path: "/api/early-voting-places",
+});
+bindForm("form-candidate-add", "result-candidate-add", {
+  method: "POST", path: "/api/candidates",
+});
+bindForm("form-gazette-set", "result-gazette-set", {
+  method: "PUT", path: (d) => `/api/elections/${d.election_id}/gazette`,
+});
+bindForm("form-result-set", "result-result-set", {
+  method: "PUT", path: (d) => `/api/candidates/${d.candidate_id}/result`,
+  transform: (d) => ({ votes: Number(d.votes), elected: d.elected === "true" }),
+});
+</script>
+</body>
+</html>
