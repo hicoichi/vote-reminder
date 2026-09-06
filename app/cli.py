@@ -4,8 +4,8 @@ import json
 import sys
 
 from app import (
-    candidates, db, early_voting, election_detail, elections, notifications,
-    polling_places, region_elections, regions, vote_records,
+    candidates, db, early_voting, election_detail, election_history, elections,
+    notifications, polling_places, region_elections, regions, vote_records,
 )
 
 
@@ -162,6 +162,18 @@ def cmd_result_set(args, conn):
 
 def cmd_result_show(args, conn):
     _print(candidates.get_results(conn, args.election_id))
+
+
+def cmd_history_elections(args, conn):
+    _print(election_history.list_past_elections(conn, args.region_id))
+
+
+def cmd_history_results(args, conn):
+    _print(election_history.get_past_election_results(conn, args.election_id))
+
+
+def cmd_history_votes(args, conn):
+    _print(election_history.list_voting_history(conn, args.region_id))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -363,6 +375,21 @@ def build_parser() -> argparse.ArgumentParser:
     p = result_sub.add_parser("show", help="選挙の開票結果を確認する")
     p.add_argument("election_id", type=int)
     p.set_defaults(func=cmd_result_show)
+
+    history = sub.add_parser("history", help="選挙履歴・投票履歴の確認")
+    history_sub = history.add_subparsers(dest="history_command", required=True)
+
+    p = history_sub.add_parser("elections", help="過去の選挙を一覧で確認する")
+    p.add_argument("region_id", type=int)
+    p.set_defaults(func=cmd_history_elections)
+
+    p = history_sub.add_parser("results", help="過去の選挙の開票結果を確認する")
+    p.add_argument("election_id", type=int)
+    p.set_defaults(func=cmd_history_results)
+
+    p = history_sub.add_parser("votes", help="自分の投票済み履歴を確認する")
+    p.add_argument("region_id", type=int)
+    p.set_defaults(func=cmd_history_votes)
 
     return parser
 

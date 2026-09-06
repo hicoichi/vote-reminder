@@ -13,15 +13,18 @@ def _matches_region(election: dict, region: dict) -> bool:
     return True
 
 
+def list_all_elections_for_region(conn: sqlite3.Connection, region_id: int) -> list[dict]:
+    """ステータスを問わず、登録地域（自治体・都道府県）に紐づく選挙を取得する。"""
+    region = get_region(conn, region_id)
+    rows = conn.execute("SELECT * FROM elections ORDER BY vote_date").fetchall()
+    return [dict(r) for r in rows if _matches_region(dict(r), region)]
+
+
 def list_elections_for_region(
     conn: sqlite3.Connection, region_id: int, election_type: str | None = None
 ) -> list[dict]:
     """登録地域（自治体・都道府県）に紐づく実施予定の選挙を取得する。"""
-    region = get_region(conn, region_id)
-    rows = conn.execute(
-        "SELECT * FROM elections WHERE status = 'scheduled' ORDER BY vote_date"
-    ).fetchall()
-    result = [dict(r) for r in rows if _matches_region(dict(r), region)]
+    result = [e for e in list_all_elections_for_region(conn, region_id) if e["status"] == "scheduled"]
     if election_type is not None:
         result = [e for e in result if e["election_type"] == election_type]
     return result
