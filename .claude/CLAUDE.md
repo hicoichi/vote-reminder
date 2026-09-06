@@ -19,9 +19,17 @@
 
 * [docs/user-story-map.md](../docs/user-story-map.md) — プロダクトゴール、ユーザーストーリーマップ、リリース計画（v0.1〜v1.0）、EPIC一覧、MVP Definition of Done
 
-## 現在の開発フェーズ
+## 現在の開発フェーズ・技術スタック
 
-要件定義フェーズ。実装コード・技術スタックはまだ存在しない。新規に技術選定を行う際は、まずユーザーに方針を確認すること。
+EPIC-01〜10をVue 3 + Vite製のSPA（バックエンドなし）として実装済み（PoC）。
+
+* ロジックは `src/logic/` 配下にフレームワーク非依存のJS関数として実装し、`src/views/` のVueコンポーネントから呼び出す構成。
+* データ永続化はブラウザの `localStorage`（`src/logic/db.js`）。サーバー・DBは持たない。
+* 郵便番号→自治体の特定は [zipcloud API](http://zipcloud.ibsnet.co.jp/doc/api) をJSONPで直接呼び出す。
+* テストは Vitest（`src/logic/__tests__/`, `src/views/__tests__/`）。
+* 詳細な起動・ビルド・テスト方法は [README.md](../README.md) を参照。
+
+これ以外の技術スタックへの変更（バックエンドの追加、別フレームワークへの移行など）を行う場合は、まずユーザーに方針を確認すること。
 
 ## タスク管理
 
