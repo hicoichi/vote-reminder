@@ -3,7 +3,7 @@ import argparse
 import json
 import sys
 
-from app import db, elections, region_elections, regions
+from app import db, election_detail, elections, region_elections, regions
 
 
 def _print(obj) -> None:
@@ -73,6 +73,10 @@ def cmd_my_elections_list(args, conn):
 
 def cmd_my_elections_next(args, conn):
     _print(region_elections.next_election_for_region(conn, args.region_id))
+
+
+def cmd_election_detail_show(args, conn):
+    _print(election_detail.get_election_detail(conn, args.election_id))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -151,6 +155,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = my_elections_sub.add_parser("next", help="次回の選挙を判定する")
     p.add_argument("region_id", type=int)
     p.set_defaults(func=cmd_my_elections_next)
+
+    p = election_sub.add_parser(
+        "detail", help="選挙名・投票日・残り日数など選挙の詳細を確認する"
+    )
+    p.add_argument("election_id", type=int)
+    p.set_defaults(func=cmd_election_detail_show)
 
     return parser
 
