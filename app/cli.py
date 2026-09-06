@@ -3,7 +3,7 @@ import argparse
 import json
 import sys
 
-from app import db, elections, regions
+from app import db, elections, region_elections, regions
 
 
 def _print(obj) -> None:
@@ -65,6 +65,14 @@ def cmd_election_stale(args, conn):
 
 def cmd_fetch_log_list(args, conn):
     _print(elections.list_fetch_failures(conn))
+
+
+def cmd_my_elections_list(args, conn):
+    _print(region_elections.list_elections_for_region(conn, args.region_id, args.type))
+
+
+def cmd_my_elections_next(args, conn):
+    _print(region_elections.next_election_for_region(conn, args.region_id))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -131,6 +139,18 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_log_sub = fetch_log.add_subparsers(dest="fetch_log_command", required=True)
     p = fetch_log_sub.add_parser("list", help="データ取得に失敗した履歴を確認する")
     p.set_defaults(func=cmd_fetch_log_list)
+
+    my_elections = sub.add_parser("my-elections", help="自分の地域に関係する選挙を確認する")
+    my_elections_sub = my_elections.add_subparsers(dest="my_elections_command", required=True)
+
+    p = my_elections_sub.add_parser("list", help="地域に紐づく実施予定の選挙を一覧表示する")
+    p.add_argument("region_id", type=int)
+    p.add_argument("--type", default=None, choices=sorted(elections.ELECTION_TYPES))
+    p.set_defaults(func=cmd_my_elections_list)
+
+    p = my_elections_sub.add_parser("next", help="次回の選挙を判定する")
+    p.add_argument("region_id", type=int)
+    p.set_defaults(func=cmd_my_elections_next)
 
     return parser
 
