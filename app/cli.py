@@ -3,7 +3,7 @@ import argparse
 import json
 import sys
 
-from app import db, election_detail, elections, notifications, region_elections, regions
+from app import db, election_detail, elections, notifications, polling_places, region_elections, regions
 
 
 def _print(obj) -> None:
@@ -101,6 +101,17 @@ def cmd_notify_setting_set(args, conn):
 
 def cmd_notify_setting_show(args, conn):
     _print(notifications.get_setting(conn, args.region_id, args.type))
+
+
+def cmd_polling_place_add(args, conn):
+    _print(polling_places.add_polling_place(
+        conn, prefecture=args.prefecture, city=args.city, name=args.name,
+        address=args.address, open_time=args.open_time, close_time=args.close_time,
+    ))
+
+
+def cmd_polling_place_show(args, conn):
+    _print(polling_places.get_polling_place_for_region(conn, args.region_id))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -215,6 +226,22 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument("--enable", action="store_true")
     group.add_argument("--disable", action="store_true")
     p.set_defaults(func=cmd_notify_setting_set)
+
+    polling_place = sub.add_parser("polling-place", help="投票所の確認（管理用登録を含む）")
+    polling_place_sub = polling_place.add_subparsers(dest="polling_place_command", required=True)
+
+    p = polling_place_sub.add_parser("add", help="投票所を登録する（管理用）")
+    p.add_argument("--prefecture", required=True)
+    p.add_argument("--city", required=True)
+    p.add_argument("--name", required=True)
+    p.add_argument("--address", required=True)
+    p.add_argument("--open-time", default="07:00", dest="open_time")
+    p.add_argument("--close-time", default="20:00", dest="close_time")
+    p.set_defaults(func=cmd_polling_place_add)
+
+    p = polling_place_sub.add_parser("show", help="登録地域に対応する投票所を確認する")
+    p.add_argument("region_id", type=int)
+    p.set_defaults(func=cmd_polling_place_show)
 
     return parser
 
