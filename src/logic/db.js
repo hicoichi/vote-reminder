@@ -12,7 +12,6 @@ const TABLES = [
   "election_gazettes",
   "election_results",
   "notification_settings",
-  "notifications",
   "vote_records",
 ]
 

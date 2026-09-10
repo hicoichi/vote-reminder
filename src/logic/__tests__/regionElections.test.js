@@ -57,4 +57,9 @@ describe("regionElections", () => {
     const result = nextElectionForRegion(region.id)
     expect(result.id).toBe(nearer.id)
   })
+
+  it("投票日を過ぎた選挙は一覧から除外される", () => {
+    addTestElection({ voteDate: "2020-01-01" })
+    expect(listElectionsForRegion(region.id)).toEqual([])
+  })
 })

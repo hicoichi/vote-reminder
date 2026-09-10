@@ -4,14 +4,7 @@ import { getRegion } from "../logic/regions.js"
 import { ELECTION_TYPES } from "../logic/elections.js"
 import { listElectionsForRegion, nextElectionForRegion } from "../logic/regionElections.js"
 import { getElectionDetail } from "../logic/electionDetail.js"
-import {
-  ALL_TYPES,
-  DEFAULT_DAYS_BEFORE,
-  getSetting,
-  listNotifications,
-  notifyDue,
-  setSetting,
-} from "../logic/notifications.js"
+import { DEFAULT_DAYS_BEFORE, getSetting, setSetting } from "../logic/notifications.js"
 import { getPollingPlaceForRegion } from "../logic/pollingPlaces.js"
 import { listEarlyVotingPlacesForRegion } from "../logic/earlyVoting.js"
 import { listVotedElections, markVoted } from "../logic/voteRecords.js"
@@ -57,16 +50,15 @@ const selectedDetail = computed(() =>
   selectedDetailId.value ? getElectionDetail(selectedDetailId.value) : null
 )
 
-// --- 通知設定・通知履歴 ---
-const notifyTypeChoice = ref(ALL_TYPES)
+// --- 通知設定（地域共通） ---
 const notifySettingForm = ref({ enabled: true, daysBefore: DEFAULT_DAYS_BEFORE.join(",") })
 function loadNotifySetting() {
-  const setting = getSetting(regionId.value, notifyTypeChoice.value)
+  const setting = getSetting(regionId.value)
   notifySettingForm.value = { enabled: setting.enabled, daysBefore: setting.days_before.join(",") }
 }
-watch([regionId, notifyTypeChoice], loadNotifySetting, { immediate: true })
+watch(regionId, loadNotifySetting, { immediate: true })
 function saveNotifySetting() {
-  setSetting(regionId.value, notifyTypeChoice.value, {
+  setSetting(regionId.value, {
     enabled: notifySettingForm.value.enabled,
     daysBefore: notifySettingForm.value.daysBefore
       .split(",")
@@ -74,15 +66,6 @@ function saveNotifySetting() {
       .map((v) => Number(v)),
   })
   loadNotifySetting()
-}
-const notifications = ref([])
-function reloadNotifications() {
-  notifications.value = listNotifications(regionId.value)
-}
-watch(regionId, reloadNotifications, { immediate: true })
-function runNotifyCheck() {
-  notifyDue(regionId.value)
-  reloadNotifications()
 }
 
 // --- 投票所 ---
@@ -192,13 +175,6 @@ function markVotedNow() {
     <section v-show="activeTab === 'notifications'">
       <h2>投票日の通知</h2>
       <div class="field">
-        <label>設定対象の選挙種別</label>
-        <select v-model="notifyTypeChoice">
-          <option :value="ALL_TYPES">すべての選挙（共通設定）</option>
-          <option v-for="t in ELECTION_TYPES" :key="t" :value="t">{{ t }}</option>
-        </select>
-      </div>
-      <div class="field">
         <label><input type="checkbox" v-model="notifySettingForm.enabled" /> 通知を有効にする</label>
       </div>
       <div class="field">
@@ -206,19 +182,6 @@ function markVotedNow() {
         <input v-model="notifySettingForm.daysBefore" />
       </div>
       <button type="button" @click="saveNotifySetting">設定を保存</button>
-
-      <h3 style="margin-top: 16px;">通知履歴</h3>
-      <button type="button" class="secondary" @click="runNotifyCheck">通知タイミングを確認する</button>
-      <table v-if="notifications.length > 0" style="margin-top: 8px;">
-        <thead><tr><th>送信日時</th><th>内容</th></tr></thead>
-        <tbody>
-          <tr v-for="n in notifications" :key="n.id">
-            <td>{{ n.sent_at }}</td>
-            <td>{{ n.message }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p v-else>通知履歴はありません。</p>
     </section>
 
     <section v-show="activeTab === 'overview'">

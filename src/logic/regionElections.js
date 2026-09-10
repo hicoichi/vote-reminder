@@ -1,7 +1,7 @@
 // EPIC-02 自分に関係する選挙を取得できる。
 import { loadState } from "./db.js"
 import { getRegion } from "./regions.js"
-import { listElections } from "./elections.js"
+import { finalizePastElections, listElections } from "./elections.js"
 
 function matchesRegion(election, region) {
   if (election.prefecture !== null && election.prefecture !== region.prefecture) return false
@@ -15,6 +15,7 @@ function today() {
 
 // ステータスを問わず、登録地域（自治体・都道府県）に紐づく選挙を取得する。
 export function listAllElectionsForRegion(regionId) {
+  finalizePastElections()
   const state = loadState()
   const region = getRegion(regionId, state)
   return listElections(state).filter((e) => matchesRegion(e, region))
