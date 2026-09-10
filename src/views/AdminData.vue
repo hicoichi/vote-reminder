@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from "vue"
+import { ref } from "vue"
 import { ELECTION_TYPES, STATUSES, addElection, deleteElection, listElections, setElectionStatus, updateElection } from "../logic/elections.js"
 import {
   addPollingPlace,
@@ -13,7 +13,6 @@ import {
   listEarlyVotingPlaces,
   updateEarlyVotingPlace,
 } from "../logic/earlyVoting.js"
-import { addCandidate, getGazette, getResults, listCandidates, setGazette, setResult } from "../logic/candidates.js"
 
 const errorMessage = ref("")
 function runSafely(fn) {
@@ -208,70 +207,6 @@ function removeEarlyVotingPlace(placeId) {
     reloadEarlyVotingPlaces()
   })
 }
-
-// --- 候補者 ---
-const candidateForm = ref({ electionId: "", name: "", party: "", profile: "", sourceUrl: "" })
-const candidateMessage = ref("")
-const candidatesForSelectedElection = computed(() =>
-  candidateForm.value.electionId ? listCandidates(Number(candidateForm.value.electionId)) : []
-)
-function submitCandidate() {
-  runSafely(() => {
-    addCandidate({
-      electionId: Number(candidateForm.value.electionId),
-      name: candidateForm.value.name,
-      party: candidateForm.value.party || null,
-      profile: candidateForm.value.profile || null,
-      sourceUrl: candidateForm.value.sourceUrl || null,
-    })
-    candidateMessage.value = `候補者「${candidateForm.value.name}」を登録しました`
-    candidateForm.value = { ...candidateForm.value, name: "", party: "", profile: "", sourceUrl: "" }
-  })
-}
-
-// --- 選挙公報 ---
-const gazetteForm = ref({ electionId: "", content: "", sourceUrl: "" })
-const gazetteMessage = ref("")
-watch(
-  () => gazetteForm.value.electionId,
-  (electionId) => {
-    const existing = electionId ? getGazette(Number(electionId)) : null
-    gazetteForm.value = {
-      electionId,
-      content: existing?.content ?? "",
-      sourceUrl: existing?.source_url ?? "",
-    }
-  }
-)
-function submitGazette() {
-  runSafely(() => {
-    setGazette(Number(gazetteForm.value.electionId), gazetteForm.value.content, gazetteForm.value.sourceUrl)
-    gazetteMessage.value = "選挙公報を登録しました"
-  })
-}
-
-// --- 開票結果 ---
-const resultForm = ref({ electionId: "", candidateId: "", votes: "", elected: false })
-const resultMessage = ref("")
-const candidatesForResultElection = computed(() =>
-  resultForm.value.electionId ? listCandidates(Number(resultForm.value.electionId)) : []
-)
-const resultsForSelectedElection = computed(() =>
-  resultForm.value.electionId ? getResults(Number(resultForm.value.electionId)) : []
-)
-watch(
-  () => resultForm.value.electionId,
-  () => {
-    resultForm.value = { ...resultForm.value, candidateId: "", votes: "", elected: false }
-  }
-)
-function submitResult() {
-  runSafely(() => {
-    setResult(Number(resultForm.value.candidateId), Number(resultForm.value.votes), resultForm.value.elected)
-    resultMessage.value = "開票結果を登録しました"
-    resultForm.value = { ...resultForm.value, candidateId: "", votes: "", elected: false }
-  })
-}
 </script>
 
 <template>
@@ -398,102 +333,5 @@ function submitResult() {
       </tbody>
     </table>
     <p v-else>期日前投票所はまだ登録されていません。</p>
-  </section>
-
-  <section>
-    <h2>候補者の登録（管理用）</h2>
-    <form @submit.prevent="submitCandidate">
-      <div class="field">
-        <label>対象の選挙</label>
-        <select v-model="candidateForm.electionId" required>
-          <option value="" disabled>選択してください</option>
-          <option v-for="e in elections" :key="e.id" :value="e.id">{{ e.name }}</option>
-        </select>
-      </div>
-      <div class="field"><label>候補者名</label><input v-model="candidateForm.name" required /></div>
-      <div class="field"><label>政党</label><input v-model="candidateForm.party" /></div>
-      <div class="field"><label>プロフィール</label><textarea v-model="candidateForm.profile"></textarea></div>
-      <div class="field"><label>出典URL</label><input v-model="candidateForm.sourceUrl" /></div>
-      <button type="submit">登録する</button>
-    </form>
-    <p v-if="candidateMessage">{{ candidateMessage }}</p>
-
-    <template v-if="candidateForm.electionId">
-      <h3 style="margin-top: 16px;">登録済みの候補者</h3>
-      <table v-if="candidatesForSelectedElection.length > 0">
-        <thead><tr><th>候補者名</th><th>政党</th></tr></thead>
-        <tbody>
-          <tr v-for="c in candidatesForSelectedElection" :key="c.id">
-            <td>{{ c.name }}</td>
-            <td>{{ c.party || "-" }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p v-else>この選挙の候補者はまだ登録されていません。</p>
-    </template>
-  </section>
-
-  <section>
-    <h2>選挙公報の登録（管理用）</h2>
-    <form @submit.prevent="submitGazette">
-      <div class="field">
-        <label>対象の選挙</label>
-        <select v-model="gazetteForm.electionId" required>
-          <option value="" disabled>選択してください</option>
-          <option v-for="e in elections" :key="e.id" :value="e.id">{{ e.name }}</option>
-        </select>
-      </div>
-      <div class="field"><label>内容</label><textarea v-model="gazetteForm.content" required></textarea></div>
-      <div class="field"><label>出典URL</label><input v-model="gazetteForm.sourceUrl" required /></div>
-      <button type="submit">登録する</button>
-    </form>
-    <p v-if="gazetteMessage">{{ gazetteMessage }}</p>
-    <p style="opacity: 0.7; font-size: 0.85em;" v-if="gazetteForm.electionId && gazetteForm.content">
-      この選挙にはすでに選挙公報が登録されています。内容を書き換えて登録すると上書きされます。
-    </p>
-  </section>
-
-  <section>
-    <h2>開票結果の登録（管理用）</h2>
-    <form @submit.prevent="submitResult">
-      <div class="field">
-        <label>対象の選挙</label>
-        <select v-model="resultForm.electionId" required>
-          <option value="" disabled>選択してください</option>
-          <option v-for="e in elections" :key="e.id" :value="e.id">{{ e.name }}</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>候補者</label>
-        <select v-model="resultForm.candidateId" required :disabled="!resultForm.electionId">
-          <option value="" disabled>選択してください</option>
-          <option v-for="c in candidatesForResultElection" :key="c.id" :value="c.id">
-            {{ c.name }}{{ c.party ? `（${c.party}）` : "" }}
-          </option>
-        </select>
-        <p v-if="resultForm.electionId && candidatesForResultElection.length === 0" style="font-size: 0.85em; opacity: 0.7;">
-          この選挙の候補者がまだ登録されていません。先に候補者を登録してください。
-        </p>
-      </div>
-      <div class="field"><label>得票数</label><input type="number" v-model="resultForm.votes" required /></div>
-      <div class="field"><label><input type="checkbox" v-model="resultForm.elected" /> 当選</label></div>
-      <button type="submit">登録する</button>
-    </form>
-    <p v-if="resultMessage">{{ resultMessage }}</p>
-
-    <template v-if="resultForm.electionId && resultsForSelectedElection.length > 0">
-      <h3 style="margin-top: 16px;">この選挙の開票結果</h3>
-      <table>
-        <thead><tr><th>候補者名</th><th>政党</th><th>得票数</th><th>当選</th></tr></thead>
-        <tbody>
-          <tr v-for="r in resultsForSelectedElection" :key="r.id">
-            <td>{{ r.name }}</td>
-            <td>{{ r.party || "-" }}</td>
-            <td>{{ r.votes ?? "-" }}</td>
-            <td>{{ r.elected ? "当選" : "" }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </template>
   </section>
 </template>
