@@ -123,3 +123,75 @@ th, td {
   padding: 6px 8px;
   text-align: left;
 }
+
+.badge {
+  display: inline-block;
+  font-size: 0.8em;
+  padding: 2px 8px;
+  margin-left: 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.hero {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.hero h3 {
+  margin: 4px 0 12px;
+}
+
+.hero-dates {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  align-items: start;
+}
+
+.hero-label {
+  font-size: 0.85em;
+  margin-bottom: 2px;
+}
+
+.hero-value {
+  font-size: 1.3em;
+  font-weight: 700;
+}
+
+.hero-value--sub {
+  font-size: 1em;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.election-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.election-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.election-row:last-child {
+  border-bottom: none;
+}
+
+.election-row-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.election-row-dates {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.9em;
+  flex-wrap: wrap;
+}

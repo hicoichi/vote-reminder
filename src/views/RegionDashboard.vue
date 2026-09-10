@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref, watch } from "vue"
 import { getRegion } from "../logic/regions.js"
-import { ELECTION_TYPES } from "../logic/elections.js"
 import { listElectionsForRegion, nextElectionForRegion } from "../logic/regionElections.js"
 import { getElectionDetail } from "../logic/electionDetail.js"
 import { DEFAULT_DAYS_BEFORE, getSetting, setSetting } from "../logic/notifications.js"
@@ -33,25 +32,22 @@ function reloadRegion() {
 watch(regionId, reloadRegion, { immediate: true })
 watch(regionId, () => { activeTab.value = "overview" })
 
+const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"]
+function formatVoteDate(dateStr) {
+  const d = new Date(dateStr)
+  return `${d.getMonth() + 1}/${d.getDate()}（${WEEKDAYS[d.getDay()]}）`
+}
+
 // --- 対象の選挙（投票記録タブで利用） ---
 const selectedElectionId = ref("")
 watch(regionId, () => { selectedElectionId.value = "" })
 
-// --- 自分に関係する選挙 ---
-const electionTypeFilter = ref("")
-const electionsForRegion = computed(() =>
-  listElectionsForRegion(regionId.value, electionTypeFilter.value || null)
-)
-const allElectionsForRegion = computed(() => listElectionsForRegion(regionId.value, null))
+// --- 自分に関係する選挙（投票日順） ---
+const electionsForRegion = computed(() => listElectionsForRegion(regionId.value))
 const nextElection = computed(() => nextElectionForRegion(regionId.value))
-
-// 選挙一覧で選択中の選挙（デフォルトは次回の選挙）。詳細情報と期日前投票所の表示に使う。
-const selectedDetailId = ref(null)
-watch(regionId, () => {
-  selectedDetailId.value = region.value ? (nextElectionForRegion(regionId.value)?.id ?? null) : null
-}, { immediate: true })
-const selectedDetail = computed(() =>
-  selectedDetailId.value ? getElectionDetail(selectedDetailId.value) : null
+const nextElectionDetail = computed(() => (nextElection.value ? getElectionDetail(nextElection.value.id) : null))
+const otherElections = computed(() =>
+  electionsForRegion.value.filter((e) => !nextElection.value || e.id !== nextElection.value.id)
 )
 
 // --- 通知設定（地域共通） ---
@@ -75,23 +71,35 @@ function saveNotifySetting() {
 // --- 投票所（当日） ---
 const pollingPlace = computed(() => getPollingPlaceForRegion(regionId.value))
 
-// --- 期日前投票（選択中の選挙に対応する投票所） ---
-const earlyVotingPlaces = ref([])
-const earlyVotingError = ref("")
-function loadEarlyVotingPlaces() {
-  earlyVotingError.value = ""
-  if (!selectedDetailId.value) {
-    earlyVotingPlaces.value = []
-    return
+// --- 期日前投票所（関係する選挙ごとに集約） ---
+const earlyVotingByElection = ref({})
+function loadEarlyVotingByElection() {
+  const map = {}
+  for (const e of electionsForRegion.value) {
+    map[e.id] = listEarlyVotingPlacesForRegion(regionId.value, e.id)
   }
-  try {
-    earlyVotingPlaces.value = listEarlyVotingPlacesForRegion(regionId.value, selectedDetailId.value)
-  } catch (e) {
-    earlyVotingError.value = e.message
-    earlyVotingPlaces.value = []
+  earlyVotingByElection.value = map
+}
+watch(electionsForRegion, loadEarlyVotingByElection, { immediate: true })
+
+// 選挙の期日前投票期間（複数投票所の最早〜最遅）を返す。登録がなければnull。
+function earlyVotingRange(electionId) {
+  const places = earlyVotingByElection.value[electionId] || []
+  if (places.length === 0) return null
+  return {
+    start: places.reduce((min, p) => (p.period_start < min ? p.period_start : min), places[0].period_start),
+    end: places.reduce((max, p) => (p.period_end > max ? p.period_end : max), places[0].period_end),
   }
 }
-watch(selectedDetailId, loadEarlyVotingPlaces, { immediate: true })
+
+// --- 期日前投票所の場所一覧の展開表示 ---
+const expandedElectionIds = ref(new Set())
+function togglePlaces(electionId) {
+  const next = new Set(expandedElectionIds.value)
+  if (next.has(electionId)) next.delete(electionId)
+  else next.add(electionId)
+  expandedElectionIds.value = next
+}
 
 // --- 投票記録 ---
 const votedElections = ref([])
@@ -124,7 +132,7 @@ function markVotedNow() {
       <label>対象の選挙</label>
       <select v-model="selectedElectionId">
         <option value="">選択してください</option>
-        <option v-for="e in allElectionsForRegion" :key="e.id" :value="e.id">{{ e.name }}</option>
+        <option v-for="e in electionsForRegion" :key="e.id" :value="e.id">{{ e.name }}</option>
       </select>
     </div>
 
@@ -147,56 +155,74 @@ function markVotedNow() {
 
     <section v-show="activeTab === 'overview'">
       <h2>選挙情報</h2>
-      <p v-if="nextElection">
-        次回の選挙: {{ nextElection.name }}（{{ nextElection.election_type }}） 投票日: {{ nextElection.vote_date }}
-      </p>
-      <p v-else>次回の選挙は登録されていません。</p>
 
-      <h3>関係する選挙一覧</h3>
-      <div class="field">
-        <label>種別で絞り込み</label>
-        <select v-model="electionTypeFilter">
-          <option value="">すべて</option>
-          <option v-for="t in ELECTION_TYPES" :key="t" :value="t">{{ t }}</option>
-        </select>
-      </div>
-      <table v-if="electionsForRegion.length > 0">
-        <thead>
-          <tr><th>選挙名</th><th>種別</th><th>投票日</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="e in electionsForRegion" :key="e.id">
-            <td>{{ e.name }}</td>
-            <td>{{ e.election_type }}</td>
-            <td>{{ e.vote_date }}</td>
-            <td><button type="button" class="secondary" @click="selectedDetailId = e.id">詳細</button></td>
-          </tr>
-        </tbody>
-      </table>
-      <p v-else>実施予定の選挙はありません。</p>
-
-      <div v-if="selectedDetail" class="field" style="margin-top: 12px;">
-        <h3>{{ selectedDetail.name }}</h3>
-        <p>
-          公示・告示日: {{ selectedDetail.announcement_date }}
-          ／投票時間: {{ selectedDetail.vote_start_time }}〜{{ selectedDetail.vote_end_time }}
-          ／投票日まであと{{ selectedDetail.days_until_vote }}日
-        </p>
-
-        <h4>期日前投票所</h4>
-        <p v-if="earlyVotingError" class="error">{{ earlyVotingError }}</p>
-        <table v-else-if="earlyVotingPlaces.length > 0">
+      <div v-if="nextElection" class="hero">
+        <span class="badge">{{ nextElection.election_type }}</span>
+        <h3>{{ nextElection.name }}</h3>
+        <div class="hero-dates">
+          <div>
+            <div class="hero-label">投票日まであと{{ nextElectionDetail.days_until_vote }}日</div>
+            <div class="hero-value">{{ formatVoteDate(nextElection.vote_date) }}</div>
+          </div>
+          <div>
+            <div class="hero-label">期日前投票期間</div>
+            <template v-if="earlyVotingRange(nextElection.id)">
+              <div class="hero-value hero-value--sub">
+                {{ earlyVotingRange(nextElection.id).start }}〜{{ earlyVotingRange(nextElection.id).end }}
+              </div>
+              <button type="button" class="secondary" @click="togglePlaces(nextElection.id)">
+                {{ expandedElectionIds.has(nextElection.id) ? "場所を閉じる" : "場所を見る" }}
+              </button>
+            </template>
+            <div v-else class="hero-value hero-value--sub">登録されていません</div>
+          </div>
+        </div>
+        <table v-if="expandedElectionIds.has(nextElection.id)" style="margin-top: 12px;">
           <thead><tr><th>投票所</th><th>期間</th><th>受付時間</th></tr></thead>
           <tbody>
-            <tr v-for="p in earlyVotingPlaces" :key="p.id">
+            <tr v-for="p in earlyVotingByElection[nextElection.id]" :key="p.id">
               <td>{{ p.name }}（{{ p.address }}）</td>
               <td>{{ p.period_start }}〜{{ p.period_end }}</td>
               <td>{{ p.open_time }}〜{{ p.close_time }}</td>
             </tr>
           </tbody>
         </table>
-        <p v-else>期日前投票所は登録されていません。</p>
       </div>
+      <p v-else>次回の選挙は登録されていません。</p>
+
+      <template v-if="otherElections.length > 0">
+        <h3 style="margin-top: 16px;">その他の関係する選挙</h3>
+        <div class="election-list">
+          <div v-for="e in otherElections" :key="e.id" class="election-row">
+            <div class="election-row-main">
+              <div>
+                <strong>{{ e.name }}</strong>
+                <span class="badge">{{ e.election_type }}</span>
+              </div>
+              <div class="election-row-dates">
+                <span>投票日: {{ e.vote_date }}</span>
+                <template v-if="earlyVotingRange(e.id)">
+                  <span>期日前: {{ earlyVotingRange(e.id).start }}〜{{ earlyVotingRange(e.id).end }}</span>
+                  <button type="button" class="secondary" @click="togglePlaces(e.id)">
+                    {{ expandedElectionIds.has(e.id) ? "場所を閉じる" : "場所を見る" }}
+                  </button>
+                </template>
+                <span v-else>期日前投票所は登録されていません</span>
+              </div>
+            </div>
+            <table v-if="expandedElectionIds.has(e.id)" style="margin-top: 8px;">
+              <thead><tr><th>投票所</th><th>期間</th><th>受付時間</th></tr></thead>
+              <tbody>
+                <tr v-for="p in earlyVotingByElection[e.id]" :key="p.id">
+                  <td>{{ p.name }}（{{ p.address }}）</td>
+                  <td>{{ p.period_start }}〜{{ p.period_end }}</td>
+                  <td>{{ p.open_time }}〜{{ p.close_time }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </template>
     </section>
 
     <section v-show="activeTab === 'notifications'">
