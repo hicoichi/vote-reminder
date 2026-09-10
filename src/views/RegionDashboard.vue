@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue"
 import { getRegion, updateRegion } from "../logic/regions.js"
-import { listElectionsForRegion, nextElectionForRegion } from "../logic/regionElections.js"
+import { listElectionsForRegion } from "../logic/regionElections.js"
 import { getElectionDetail } from "../logic/electionDetail.js"
 import {
   DEFAULT_DAYS_BEFORE,
@@ -21,7 +21,7 @@ const loadError = ref("")
 
 const tabs = [
   { id: "overview", label: "概要" },
-  { id: "voteRecords", label: "投票記録" },
+  { id: "voteRecords", label: "投票済み選挙" },
 ]
 const activeTab = ref("overview")
 
@@ -67,17 +67,25 @@ async function submitRegionChange() {
   }
 }
 
-// --- 対象の選挙（投票記録タブで利用） ---
-const selectedElectionId = ref("")
-watch(regionId, () => { selectedElectionId.value = "" })
+// --- 投票済みの記録 ---
+const votedElections = ref([])
+function reloadVotedElections() {
+  votedElections.value = listVotedElections(regionId.value)
+}
+watch(regionId, reloadVotedElections, { immediate: true })
+const votedElectionIds = computed(() => new Set(votedElections.value.map((e) => e.id)))
+function markVotedNow(electionId) {
+  markVoted(regionId.value, electionId)
+  reloadVotedElections()
+}
 
-// --- 自分に関係する選挙（投票日順） ---
-const electionsForRegion = computed(() => listElectionsForRegion(regionId.value))
-const nextElection = computed(() => nextElectionForRegion(regionId.value))
-const nextElectionDetail = computed(() => (nextElection.value ? getElectionDetail(nextElection.value.id) : null))
-const otherElections = computed(() =>
-  electionsForRegion.value.filter((e) => !nextElection.value || e.id !== nextElection.value.id)
+// --- 自分に関係する選挙（投票日順・投票済みは除く） ---
+const electionsForRegion = computed(() =>
+  listElectionsForRegion(regionId.value).filter((e) => !votedElectionIds.value.has(e.id))
 )
+const nextElection = computed(() => electionsForRegion.value[0] ?? null)
+const nextElectionDetail = computed(() => (nextElection.value ? getElectionDetail(nextElection.value.id) : null))
+const otherElections = computed(() => electionsForRegion.value.slice(1))
 
 function parseDaysBeforeInput(value) {
   return value
@@ -222,19 +230,6 @@ function closePlacesModal() {
 function handleDialogClick(event) {
   if (event.target === event.currentTarget) closePlacesModal()
 }
-
-// --- 投票記録 ---
-const votedElections = ref([])
-function reloadVotedElections() {
-  votedElections.value = listVotedElections(regionId.value)
-}
-watch(regionId, reloadVotedElections, { immediate: true })
-function markVotedNow() {
-  if (!selectedElectionId.value) return
-  markVoted(regionId.value, Number(selectedElectionId.value))
-  reloadVotedElections()
-}
-
 </script>
 
 <template>
@@ -250,14 +245,6 @@ function markVotedNow() {
       >{{ tab.label }}</button>
       <button type="button" class="gear-btn" aria-label="共通の通知設定" @click="openCommonModal">⚙</button>
     </nav>
-
-    <div class="field" v-if="activeTab === 'voteRecords'">
-      <label>対象の選挙</label>
-      <select v-model="selectedElectionId">
-        <option value="">選択してください</option>
-        <option v-for="e in electionsForRegion" :key="e.id" :value="e.id">{{ e.name }}</option>
-      </select>
-    </div>
 
     <section v-show="activeTab === 'overview'">
       <h2>選挙情報</h2>
@@ -302,6 +289,7 @@ function markVotedNow() {
             場所を見る
           </button>
           <button type="button" class="secondary" @click="openNotifyModal(nextElection.id)">通知設定</button>
+          <button type="button" @click="markVotedNow(nextElection.id)">投票した</button>
         </div>
       </div>
       <p v-else>次回の選挙は登録されていません。</p>
@@ -331,6 +319,7 @@ function markVotedNow() {
                 </template>
                 <span v-else>期日前投票所は登録されていません</span>
                 <button type="button" class="secondary" @click="openNotifyModal(e.id)">通知設定</button>
+                <button type="button" @click="markVotedNow(e.id)">投票した</button>
               </div>
             </div>
           </div>
@@ -437,9 +426,8 @@ function markVotedNow() {
     </dialog>
 
     <section v-show="activeTab === 'voteRecords'">
-      <h2>投票済みの記録</h2>
-      <button type="button" :disabled="!selectedElectionId" @click="markVotedNow">投票したと記録する</button>
-      <table v-if="votedElections.length > 0" style="margin-top: 8px;">
+      <h2>投票済み選挙</h2>
+      <table v-if="votedElections.length > 0">
         <thead><tr><th>選挙名</th><th>投票日</th><th>記録日時</th></tr></thead>
         <tbody>
           <tr v-for="e in votedElections" :key="e.id">
@@ -449,6 +437,7 @@ function markVotedNow() {
           </tr>
         </tbody>
       </table>
+      <p v-else>投票済みの選挙はまだありません。</p>
     </section>
 
   </template>
