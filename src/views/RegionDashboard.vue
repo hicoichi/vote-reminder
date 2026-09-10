@@ -17,7 +17,6 @@ const loadError = ref("")
 const tabs = [
   { id: "overview", label: "概要" },
   { id: "notifications", label: "通知" },
-  { id: "earlyVoting", label: "期日前投票" },
   { id: "voteRecords", label: "投票記録" },
 ]
 const activeTab = ref("overview")
@@ -34,7 +33,7 @@ function reloadRegion() {
 watch(regionId, reloadRegion, { immediate: true })
 watch(regionId, () => { activeTab.value = "overview" })
 
-// --- 対象の選挙（期日前投票・投票記録タブで共通利用） ---
+// --- 対象の選挙（投票記録タブで利用） ---
 const selectedElectionId = ref("")
 watch(regionId, () => { selectedElectionId.value = "" })
 
@@ -45,7 +44,12 @@ const electionsForRegion = computed(() =>
 )
 const allElectionsForRegion = computed(() => listElectionsForRegion(regionId.value, null))
 const nextElection = computed(() => nextElectionForRegion(regionId.value))
+
+// 選挙一覧で選択中の選挙（デフォルトは次回の選挙）。詳細情報と期日前投票所の表示に使う。
 const selectedDetailId = ref(null)
+watch(regionId, () => {
+  selectedDetailId.value = region.value ? (nextElectionForRegion(regionId.value)?.id ?? null) : null
+}, { immediate: true })
 const selectedDetail = computed(() =>
   selectedDetailId.value ? getElectionDetail(selectedDetailId.value) : null
 )
@@ -68,29 +72,26 @@ function saveNotifySetting() {
   loadNotifySetting()
 }
 
-// --- 投票所 ---
+// --- 投票所（当日） ---
 const pollingPlace = computed(() => getPollingPlaceForRegion(regionId.value))
 
-// --- 期日前投票 ---
+// --- 期日前投票（選択中の選挙に対応する投票所） ---
 const earlyVotingPlaces = ref([])
 const earlyVotingError = ref("")
 function loadEarlyVotingPlaces() {
   earlyVotingError.value = ""
-  if (!selectedElectionId.value) {
+  if (!selectedDetailId.value) {
     earlyVotingPlaces.value = []
     return
   }
   try {
-    earlyVotingPlaces.value = listEarlyVotingPlacesForRegion(
-      regionId.value,
-      Number(selectedElectionId.value)
-    )
+    earlyVotingPlaces.value = listEarlyVotingPlacesForRegion(regionId.value, selectedDetailId.value)
   } catch (e) {
     earlyVotingError.value = e.message
     earlyVotingPlaces.value = []
   }
 }
-watch(selectedElectionId, loadEarlyVotingPlaces)
+watch(selectedDetailId, loadEarlyVotingPlaces, { immediate: true })
 
 // --- 投票記録 ---
 const votedElections = ref([])
@@ -119,10 +120,7 @@ function markVotedNow() {
       >{{ tab.label }}</button>
     </nav>
 
-    <div
-      class="field"
-      v-if="['earlyVoting', 'voteRecords'].includes(activeTab)"
-    >
+    <div class="field" v-if="activeTab === 'voteRecords'">
       <label>対象の選挙</label>
       <select v-model="selectedElectionId">
         <option value="">選択してください</option>
@@ -186,6 +184,7 @@ function markVotedNow() {
 
     <section v-show="activeTab === 'overview'">
       <h2>投票所</h2>
+      <h3>当日</h3>
       <template v-if="pollingPlace">
         <p>{{ pollingPlace.name }}（{{ pollingPlace.address }}）</p>
         <p>受付時間: {{ pollingPlace.open_time }}〜{{ pollingPlace.close_time }}</p>
@@ -195,11 +194,12 @@ function markVotedNow() {
         </p>
       </template>
       <p v-else>この地域の投票所はまだ登録されていません。</p>
-    </section>
 
-    <section v-show="activeTab === 'earlyVoting'">
-      <h2>期日前投票</h2>
-      <p v-if="earlyVotingError" class="error">{{ earlyVotingError }}</p>
+      <h3 style="margin-top: 12px;">
+        期日前投票<template v-if="selectedDetail">（{{ selectedDetail.name }}）</template>
+      </h3>
+      <p v-if="!selectedDetail">上の「関係する選挙一覧」から選挙を選ぶと期日前投票所が表示されます。</p>
+      <p v-else-if="earlyVotingError" class="error">{{ earlyVotingError }}</p>
       <table v-else-if="earlyVotingPlaces.length > 0">
         <thead><tr><th>投票所</th><th>期間</th><th>受付時間</th></tr></thead>
         <tbody>
@@ -210,7 +210,7 @@ function markVotedNow() {
           </tr>
         </tbody>
       </table>
-      <p v-else-if="selectedElectionId">期日前投票所は登録されていません。</p>
+      <p v-else>期日前投票所は登録されていません。</p>
     </section>
 
     <section v-show="activeTab === 'voteRecords'">
