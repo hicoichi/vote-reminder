@@ -280,7 +280,6 @@ function markVotedNow() {
               <div class="hero-value--sub">
                 {{ earlyVotingRange(nextElection.id).start }}〜{{ earlyVotingRange(nextElection.id).end }}
               </div>
-              <button type="button" class="secondary" @click="openPlacesModal(nextElection.id)">場所を見る</button>
             </template>
             <div v-else class="hero-value--sub">登録されていません</div>
           </div>
@@ -299,6 +298,9 @@ function markVotedNow() {
           </div>
         </div>
         <div class="hero-actions">
+          <button v-if="earlyVotingRange(nextElection.id)" type="button" class="secondary" @click="openPlacesModal(nextElection.id)">
+            場所を見る
+          </button>
           <button type="button" class="secondary" @click="openNotifyModal(nextElection.id)">通知設定</button>
         </div>
       </div>
