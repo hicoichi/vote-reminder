@@ -3,7 +3,13 @@ import { computed, ref, watch } from "vue"
 import { getRegion } from "../logic/regions.js"
 import { listElectionsForRegion, nextElectionForRegion } from "../logic/regionElections.js"
 import { getElectionDetail } from "../logic/electionDetail.js"
-import { DEFAULT_DAYS_BEFORE, getSetting, setSetting } from "../logic/notifications.js"
+import {
+  DEFAULT_DAYS_BEFORE,
+  getEffectiveSetting,
+  getSetting,
+  setElectionSetting,
+  setSetting,
+} from "../logic/notifications.js"
 import { getPollingPlaceForRegion } from "../logic/pollingPlaces.js"
 import { listEarlyVotingPlacesForRegion } from "../logic/earlyVoting.js"
 import { listVotedElections, markVoted } from "../logic/voteRecords.js"
@@ -15,7 +21,6 @@ const loadError = ref("")
 
 const tabs = [
   { id: "overview", label: "概要" },
-  { id: "notifications", label: "通知" },
   { id: "voteRecords", label: "投票記録" },
 ]
 const activeTab = ref("overview")
@@ -50,22 +55,74 @@ const otherElections = computed(() =>
   electionsForRegion.value.filter((e) => !nextElection.value || e.id !== nextElection.value.id)
 )
 
-// --- 通知設定（地域共通） ---
-const notifySettingForm = ref({ enabled: true, daysBefore: DEFAULT_DAYS_BEFORE.join(",") })
-function loadNotifySetting() {
-  const setting = getSetting(regionId.value)
-  notifySettingForm.value = { enabled: setting.enabled, daysBefore: setting.days_before.join(",") }
+function parseDaysBeforeInput(value) {
+  return value
+    .split(",")
+    .filter((v) => v.trim() !== "")
+    .map((v) => Number(v))
 }
-watch(regionId, loadNotifySetting, { immediate: true })
-function saveNotifySetting() {
+
+// --- 通知設定（共通、歯車アイコンから開く） ---
+const commonDialog = ref(null)
+const commonSettingForm = ref({ enabled: true, daysBefore: DEFAULT_DAYS_BEFORE.join(",") })
+function openCommonModal() {
+  const setting = getSetting(regionId.value)
+  commonSettingForm.value = { enabled: setting.enabled, daysBefore: setting.days_before.join(",") }
+  commonDialog.value?.showModal()
+}
+function closeCommonModal() {
+  commonDialog.value?.close()
+}
+function handleCommonDialogClick(event) {
+  if (event.target === event.currentTarget) closeCommonModal()
+}
+function saveCommonSetting() {
   setSetting(regionId.value, {
-    enabled: notifySettingForm.value.enabled,
-    daysBefore: notifySettingForm.value.daysBefore
-      .split(",")
-      .filter((v) => v.trim() !== "")
-      .map((v) => Number(v)),
+    enabled: commonSettingForm.value.enabled,
+    daysBefore: parseDaysBeforeInput(commonSettingForm.value.daysBefore),
   })
-  loadNotifySetting()
+  closeCommonModal()
+}
+
+// --- 通知設定（選挙ごとの個別設定） ---
+const notifyDialog = ref(null)
+const notifyElectionId = ref(null)
+const notifyElection = computed(() =>
+  notifyElectionId.value ? electionsForRegion.value.find((e) => e.id === notifyElectionId.value) ?? null : null
+)
+const notifyElectionForm = ref({ enabled: true, daysBefore: "" })
+function openNotifyModal(electionId) {
+  notifyElectionId.value = electionId
+  const effective = getEffectiveSetting(regionId.value, electionId)
+  notifyElectionForm.value = { enabled: effective.enabled, daysBefore: effective.days_before.join(",") }
+  notifyDialog.value?.showModal()
+}
+function closeNotifyModal() {
+  notifyDialog.value?.close()
+}
+function handleNotifyDialogClick(event) {
+  if (event.target === event.currentTarget) closeNotifyModal()
+}
+const notifyFormDiffersFromCommon = computed(() => {
+  const common = getSetting(regionId.value)
+  const formDaysBefore = parseDaysBeforeInput(notifyElectionForm.value.daysBefore)
+  return (
+    notifyElectionForm.value.enabled !== common.enabled ||
+    formDaysBefore.length !== common.days_before.length ||
+    formDaysBefore.some((d, i) => d !== common.days_before[i])
+  )
+})
+function resetNotifyFormToCommon() {
+  const common = getSetting(regionId.value)
+  notifyElectionForm.value = { enabled: common.enabled, daysBefore: common.days_before.join(",") }
+}
+function saveNotifyElectionSetting() {
+  if (!notifyElectionId.value) return
+  setElectionSetting(regionId.value, notifyElectionId.value, {
+    enabled: notifyElectionForm.value.enabled,
+    daysBefore: parseDaysBeforeInput(notifyElectionForm.value.daysBefore),
+  })
+  closeNotifyModal()
 }
 
 // --- 投票所（当日） ---
@@ -134,6 +191,7 @@ function markVotedNow() {
         :class="{ active: activeTab === tab.id }"
         @click="activeTab = tab.id"
       >{{ tab.label }}</button>
+      <button type="button" class="gear-btn" aria-label="共通の通知設定" @click="openCommonModal">⚙</button>
     </nav>
 
     <div class="field" v-if="activeTab === 'voteRecords'">
@@ -166,6 +224,9 @@ function markVotedNow() {
             <div v-else class="hero-value hero-value--sub">登録されていません</div>
           </div>
         </div>
+        <div class="hero-actions">
+          <button type="button" class="secondary" @click="openNotifyModal(nextElection.id)">通知設定</button>
+        </div>
       </div>
       <p v-else>次回の選挙は登録されていません。</p>
 
@@ -185,6 +246,7 @@ function markVotedNow() {
                   <button type="button" class="secondary" @click="openPlacesModal(e.id)">場所を見る</button>
                 </template>
                 <span v-else>期日前投票所は登録されていません</span>
+                <button type="button" class="secondary" @click="openNotifyModal(e.id)">通知設定</button>
               </div>
             </div>
           </div>
@@ -229,17 +291,44 @@ function markVotedNow() {
       登録地域: {{ region.zipcode }} {{ region.prefecture }}{{ region.city }}{{ region.town }}
     </p>
 
-    <section v-show="activeTab === 'notifications'">
-      <h2>投票日の通知</h2>
-      <div class="field">
-        <label><input type="checkbox" v-model="notifySettingForm.enabled" /> 通知を有効にする</label>
+    <dialog ref="commonDialog" class="places-dialog" @click="handleCommonDialogClick">
+      <div class="modal-body">
+        <div class="modal-head">
+          <h3>共通の通知設定</h3>
+          <button type="button" class="modal-close" @click="closeCommonModal">×</button>
+        </div>
+        <div class="field">
+          <label><input type="checkbox" v-model="commonSettingForm.enabled" /> 通知を有効にする</label>
+        </div>
+        <div class="field">
+          <label>通知タイミング（カンマ区切りの残り日数、例: 7,1,0）</label>
+          <input v-model="commonSettingForm.daysBefore" />
+        </div>
+        <button type="button" @click="saveCommonSetting">保存</button>
       </div>
-      <div class="field">
-        <label>通知タイミング（カンマ区切りの残り日数、例: 7,1,0）</label>
-        <input v-model="notifySettingForm.daysBefore" />
+    </dialog>
+
+    <dialog ref="notifyDialog" class="places-dialog" @click="handleNotifyDialogClick" @close="notifyElectionId = null">
+      <div class="modal-body">
+        <div class="modal-head">
+          <h3>通知設定<template v-if="notifyElection">（{{ notifyElection.name }}）</template></h3>
+          <button type="button" class="modal-close" @click="closeNotifyModal">×</button>
+        </div>
+        <div class="field">
+          <label><input type="checkbox" v-model="notifyElectionForm.enabled" /> 通知を有効にする</label>
+        </div>
+        <div class="field">
+          <label>通知タイミング（カンマ区切りの残り日数、例: 7,1,0）</label>
+          <input v-model="notifyElectionForm.daysBefore" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" @click="saveNotifyElectionSetting">保存</button>
+          <button v-if="notifyFormDiffersFromCommon" type="button" class="secondary" @click="resetNotifyFormToCommon">
+            共通設定に戻す
+          </button>
+        </div>
       </div>
-      <button type="button" @click="saveNotifySetting">設定を保存</button>
-    </section>
+    </dialog>
 
     <section v-show="activeTab === 'voteRecords'">
       <h2>投票済みの記録</h2>
