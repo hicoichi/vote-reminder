@@ -5,6 +5,8 @@
   --border: #ddd;
   --accent: #2563eb;
   --danger: #b91c1c;
+  --ok: #1a7f37;
+  --ok-bg: #eaf6ee;
   font: 16px/1.6 system-ui, "Segoe UI", Roboto, sans-serif;
   color-scheme: light dark;
   color: var(--text);
@@ -19,6 +21,8 @@
     --border: #3a3c47;
     --accent: #7aa2ff;
     --danger: #f87171;
+    --ok: #4ac26b;
+    --ok-bg: #16261c;
   }
 }
 
@@ -158,8 +162,20 @@ th, td {
   padding: 12px 16px;
 }
 
+.hero.is-active {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+}
+
 .hero h3 {
   margin: 4px 0 12px;
+}
+
+.hero-headline {
+  font-size: 1.15em;
+  font-weight: 800;
+  color: var(--ok);
+  margin-bottom: 10px;
 }
 
 .hero-dates {
@@ -175,14 +191,72 @@ th, td {
 }
 
 .hero-value {
-  font-size: 1.3em;
-  font-weight: 700;
+  font-size: 1.9em;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--danger);
+}
+
+.hero-value .unit {
+  font-size: 0.42em;
+  font-weight: 600;
 }
 
 .hero-value--sub {
   font-size: 1em;
   font-weight: 600;
   margin-bottom: 6px;
+}
+
+.now-badge {
+  display: inline-block;
+  font-size: 0.72em;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ok);
+  border-radius: 999px;
+  padding: 2px 9px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.timeline {
+  margin: 14px 0 2px;
+}
+
+.timeline-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.timeline-early {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--ok);
+  opacity: 0.55;
+}
+
+.timeline-dot {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid var(--bg);
+  transform: translate(-50%, -50%);
+}
+
+.timeline-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72em;
+  opacity: 0.65;
+  margin-top: 4px;
 }
 
 .hero-actions {
@@ -206,6 +280,14 @@ th, td {
   border-bottom: none;
 }
 
+.election-row.is-active {
+  background: var(--ok-bg);
+  margin: 0 -16px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border-bottom-color: transparent;
+}
+
 .election-row-main {
   display: flex;
   justify-content: space-between;
@@ -220,6 +302,11 @@ th, td {
   align-items: center;
   font-size: 0.9em;
   flex-wrap: wrap;
+}
+
+.days-left {
+  color: var(--danger);
+  font-weight: 700;
 }
 
 .places-dialog {

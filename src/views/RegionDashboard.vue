@@ -37,12 +37,6 @@ function reloadRegion() {
 watch(regionId, reloadRegion, { immediate: true })
 watch(regionId, () => { activeTab.value = "overview" })
 
-const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"]
-function formatVoteDate(dateStr) {
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()}（${WEEKDAYS[d.getDay()]}）`
-}
-
 // --- 対象の選挙（投票記録タブで利用） ---
 const selectedElectionId = ref("")
 watch(regionId, () => { selectedElectionId.value = "" })
@@ -149,6 +143,39 @@ function earlyVotingRange(electionId) {
   }
 }
 
+function daysUntilVote(electionId) {
+  return getElectionDetail(electionId).days_until_vote
+}
+
+// 今日が期日前投票期間中かどうか。
+function isEarlyVotingActive(electionId) {
+  const range = earlyVotingRange(electionId)
+  if (!range) return false
+  const todayStr = new Date().toISOString().slice(0, 10)
+  return range.start <= todayStr && todayStr <= range.end
+}
+
+// タイムラインバー用に、期日前投票期間・今日の位置を0〜100%で返す。
+function timelineStats(electionId, voteDateStr) {
+  const range = earlyVotingRange(electionId)
+  if (!range) return null
+  const start = new Date(range.start)
+  const end = new Date(range.end)
+  const voteDate = new Date(voteDateStr)
+  const today = new Date(new Date().toISOString().slice(0, 10))
+  const domainStart = today < start ? today : start
+  const totalMs = voteDate - domainStart
+  const pct = (d) => (totalMs <= 0 ? 0 : Math.min(100, Math.max(0, ((d - domainStart) / totalMs) * 100)))
+  return {
+    earlyLeft: pct(start),
+    earlyWidth: Math.max(0, pct(end) - pct(start)),
+    todayLeft: pct(today),
+  }
+}
+const nextTimelineStats = computed(() =>
+  nextElection.value ? timelineStats(nextElection.value.id, nextElection.value.vote_date) : null
+)
+
 // --- 期日前投票所の場所一覧モーダル ---
 const placesDialog = ref(null)
 const modalElectionId = ref(null)
@@ -205,23 +232,40 @@ function markVotedNow() {
     <section v-show="activeTab === 'overview'">
       <h2>選挙情報</h2>
 
-      <div v-if="nextElection" class="hero">
+      <div v-if="nextElection" class="hero" :class="{ 'is-active': isEarlyVotingActive(nextElection.id) }">
         <span class="badge">{{ nextElection.election_type }}</span>
         <h3>{{ nextElection.name }}</h3>
+        <div v-if="isEarlyVotingActive(nextElection.id)" class="hero-headline">今すぐ投票できます</div>
         <div class="hero-dates">
           <div>
-            <div class="hero-label">投票日まであと{{ nextElectionDetail.days_until_vote }}日</div>
-            <div class="hero-value">{{ formatVoteDate(nextElection.vote_date) }}</div>
+            <div class="hero-label">投票終了まであと</div>
+            <div class="hero-value">{{ nextElectionDetail.days_until_vote }}<span class="unit">日</span></div>
           </div>
           <div>
-            <div class="hero-label">期日前投票期間</div>
+            <div class="hero-label">
+              期日前投票期間
+              <span v-if="isEarlyVotingActive(nextElection.id)" class="now-badge">受付中</span>
+            </div>
             <template v-if="earlyVotingRange(nextElection.id)">
-              <div class="hero-value hero-value--sub">
+              <div class="hero-value--sub">
                 {{ earlyVotingRange(nextElection.id).start }}〜{{ earlyVotingRange(nextElection.id).end }}
               </div>
               <button type="button" class="secondary" @click="openPlacesModal(nextElection.id)">場所を見る</button>
             </template>
-            <div v-else class="hero-value hero-value--sub">登録されていません</div>
+            <div v-else class="hero-value--sub">登録されていません</div>
+          </div>
+        </div>
+        <div v-if="nextTimelineStats" class="timeline">
+          <div class="timeline-track">
+            <div
+              class="timeline-early"
+              :style="{ left: nextTimelineStats.earlyLeft + '%', width: nextTimelineStats.earlyWidth + '%' }"
+            ></div>
+            <div class="timeline-dot" :style="{ left: nextTimelineStats.todayLeft + '%' }"></div>
+          </div>
+          <div class="timeline-labels">
+            <span>期日前 {{ earlyVotingRange(nextElection.id).start }}</span>
+            <span>投票日 {{ nextElection.vote_date }}</span>
           </div>
         </div>
         <div class="hero-actions">
@@ -233,16 +277,24 @@ function markVotedNow() {
       <template v-if="otherElections.length > 0">
         <h3 style="margin-top: 16px;">その他の関係する選挙</h3>
         <div class="election-list">
-          <div v-for="e in otherElections" :key="e.id" class="election-row">
+          <div
+            v-for="e in otherElections"
+            :key="e.id"
+            class="election-row"
+            :class="{ 'is-active': isEarlyVotingActive(e.id) }"
+          >
             <div class="election-row-main">
               <div>
                 <strong>{{ e.name }}</strong>
                 <span class="badge">{{ e.election_type }}</span>
               </div>
               <div class="election-row-dates">
-                <span>投票日: {{ e.vote_date }}</span>
+                <span class="days-left">あと{{ daysUntilVote(e.id) }}日</span>
                 <template v-if="earlyVotingRange(e.id)">
-                  <span>期日前: {{ earlyVotingRange(e.id).start }}〜{{ earlyVotingRange(e.id).end }}</span>
+                  <span>
+                    期日前: {{ earlyVotingRange(e.id).start }}〜{{ earlyVotingRange(e.id).end }}
+                    <span v-if="isEarlyVotingActive(e.id)" class="now-badge">受付中</span>
+                  </span>
                   <button type="button" class="secondary" @click="openPlacesModal(e.id)">場所を見る</button>
                 </template>
                 <span v-else>期日前投票所は登録されていません</span>
