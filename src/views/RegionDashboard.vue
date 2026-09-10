@@ -137,23 +137,6 @@ function markVotedNow() {
     </div>
 
     <section v-show="activeTab === 'overview'">
-      <h2>登録地域</h2>
-      <h3>住所</h3>
-      <p>{{ region.zipcode }} / {{ region.prefecture }}{{ region.city }}{{ region.town }}</p>
-
-      <h3 style="margin-top: 12px;">投票所（当日）</h3>
-      <template v-if="pollingPlace">
-        <p>{{ pollingPlace.name }}（{{ pollingPlace.address }}）</p>
-        <p>受付時間: {{ pollingPlace.open_time }}〜{{ pollingPlace.close_time }}</p>
-        <p>
-          <a :href="pollingPlace.map_url" target="_blank" rel="noopener">地図で見る</a> /
-          <a :href="pollingPlace.route_url" target="_blank" rel="noopener">経路を調べる</a>
-        </p>
-      </template>
-      <p v-else>この地域の投票所はまだ登録されていません。</p>
-    </section>
-
-    <section v-show="activeTab === 'overview'">
       <h2>選挙情報</h2>
 
       <div v-if="nextElection" class="hero">
@@ -224,6 +207,23 @@ function markVotedNow() {
         </div>
       </template>
     </section>
+
+    <section v-show="activeTab === 'overview'">
+      <h2>あなたの投票所（当日）</h2>
+      <template v-if="pollingPlace">
+        <p>{{ pollingPlace.name }}（{{ pollingPlace.address }}）</p>
+        <p>受付時間: {{ pollingPlace.open_time }}〜{{ pollingPlace.close_time }}</p>
+        <p>
+          <a :href="pollingPlace.map_url" target="_blank" rel="noopener">地図で見る</a> /
+          <a :href="pollingPlace.route_url" target="_blank" rel="noopener">経路を調べる</a>
+        </p>
+      </template>
+      <p v-else>この地域の投票所はまだ登録されていません。</p>
+    </section>
+
+    <p v-show="activeTab === 'overview'" class="address-line">
+      登録地域: {{ region.zipcode }} {{ region.prefecture }}{{ region.city }}{{ region.town }}
+    </p>
 
     <section v-show="activeTab === 'notifications'">
       <h2>投票日の通知</h2>
