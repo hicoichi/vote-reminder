@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { addElection } from "../elections.js"
-import { addEarlyVotingPlace, listEarlyVotingPlacesForRegion } from "../earlyVoting.js"
+import {
+  addEarlyVotingPlace,
+  deleteEarlyVotingPlace,
+  listEarlyVotingPlaces,
+  listEarlyVotingPlacesForRegion,
+  updateEarlyVotingPlace,
+} from "../earlyVoting.js"
 import { registerRegion } from "../regions.js"
 import { mockZipcloudResponse, ZIPCLOUD_RESPONSE } from "./testHelpers.js"
 
@@ -48,5 +54,38 @@ describe("earlyVoting", () => {
       sourceUrl: "https://example.jp/other",
     })
     expect(() => listEarlyVotingPlacesForRegion(region.id, other.id)).toThrow()
+  })
+
+  it("期日前投票所を更新できる", () => {
+    const place = addEarlyVotingPlace({
+      electionId: election.id,
+      name: "千代田区役所",
+      address: "東京都千代田区九段南1-2-1",
+      periodStart: "2026-10-05",
+      periodEnd: "2026-10-14",
+    })
+    const updated = updateEarlyVotingPlace(place.id, {
+      electionId: election.id,
+      name: "千代田区役所（別館）",
+      address: "東京都千代田区九段南1-2-2",
+      periodStart: "2026-10-06",
+      periodEnd: "2026-10-14",
+      openTime: "09:00",
+      closeTime: "18:00",
+    })
+    expect(updated.name).toBe("千代田区役所（別館）")
+    expect(updated.period_start).toBe("2026-10-06")
+  })
+
+  it("期日前投票所を削除できる", () => {
+    const place = addEarlyVotingPlace({
+      electionId: election.id,
+      name: "千代田区役所",
+      address: "東京都千代田区九段南1-2-1",
+      periodStart: "2026-10-05",
+      periodEnd: "2026-10-14",
+    })
+    deleteEarlyVotingPlace(place.id)
+    expect(listEarlyVotingPlaces()).toEqual([])
   })
 })

@@ -76,11 +76,31 @@ export function getElection(electionId, state = loadState()) {
   return election
 }
 
-export function updateElection(electionId, { sourceUrl, voteDate = null, announcementDate = null }) {
+// 部分更新用。name/electionType/prefecture/cityは指定しなければ変更しない
+// （出典データの自動更新など、日付・出典URLのみ変更したい呼び出し元のため）。
+export function updateElection(
+  electionId,
+  { sourceUrl, name = null, electionType = null, prefecture = undefined, city = undefined, voteDate = null, announcementDate = null }
+) {
   const state = loadState()
   const election = getElection(electionId, state)
   if (!sourceUrl) {
     throw new Error("出典URLは必須です")
+  }
+  if (name !== null) {
+    election.name = name
+  }
+  if (electionType !== null) {
+    if (!ELECTION_TYPES.includes(electionType)) {
+      throw new Error(`未対応の選挙種別です: ${electionType}`)
+    }
+    election.election_type = electionType
+  }
+  if (prefecture !== undefined) {
+    election.prefecture = prefecture
+  }
+  if (city !== undefined) {
+    election.city = city
   }
   if (voteDate !== null) {
     validateDate(voteDate, "投票日")
@@ -112,6 +132,13 @@ export function setElectionStatus(electionId, status) {
 
 export function listElections(state = loadState()) {
   return [...state.elections].sort((a, b) => (a.vote_date < b.vote_date ? -1 : 1))
+}
+
+export function deleteElection(electionId) {
+  const state = loadState()
+  getElection(electionId, state) // 存在確認
+  state.elections = state.elections.filter((e) => e.id !== electionId)
+  saveState(state)
 }
 
 // 出典データが一定期間更新されていない、かつ実施予定の選挙を判別する。

@@ -18,6 +18,38 @@ export function addPollingPlace({ prefecture, city, name, address, openTime = "0
   return place
 }
 
+export function getPollingPlace(placeId, state = loadState()) {
+  const place = state.polling_places.find((p) => p.id === placeId)
+  if (!place) {
+    throw new Error(`投票所が見つかりません: id=${placeId}`)
+  }
+  return place
+}
+
+export function listPollingPlaces() {
+  return loadState().polling_places
+}
+
+export function updatePollingPlace(placeId, { prefecture, city, name, address, openTime, closeTime }) {
+  const state = loadState()
+  const place = getPollingPlace(placeId, state)
+  place.prefecture = prefecture
+  place.city = city
+  place.name = name
+  place.address = address
+  place.open_time = openTime
+  place.close_time = closeTime
+  saveState(state)
+  return place
+}
+
+export function deletePollingPlace(placeId) {
+  const state = loadState()
+  getPollingPlace(placeId, state) // 存在確認
+  state.polling_places = state.polling_places.filter((p) => p.id !== placeId)
+  saveState(state)
+}
+
 // 登録地域（自治体）に対応する投票所を確認する。住所・地図・経路・投票時間を含む。
 export function getPollingPlaceForRegion(regionId) {
   const state = loadState()

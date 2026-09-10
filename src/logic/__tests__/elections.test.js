@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import {
   addElection,
+  deleteElection,
   findStaleElections,
   getElection,
+  listElections,
   listFetchFailures,
   logFetch,
   setElectionStatus,
@@ -45,6 +47,12 @@ describe("elections", () => {
     })
     expect(updated.vote_date).toBe("2026-10-22")
     expect(updated.source_url).toBe("https://example.jp/updated")
+  })
+
+  it("選挙を削除できる", () => {
+    const election = addTestElection()
+    deleteElection(election.id)
+    expect(listElections()).toEqual([])
   })
 
   it("選挙の中止ステータスが反映される", () => {
