@@ -15,9 +15,10 @@ const overviewLink = computed(() => {
 <template>
   <div id="app-shell" style="max-width: 900px; margin: 0 auto; padding: 16px;">
     <header style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
-      <h1 style="font-size: 1.4em; margin: 0;">vote-reminder</h1>
+      <router-link :to="overviewLink" style="font-size: 1.4em; font-weight: bold; text-decoration: none;">
+        vote-reminder
+      </router-link>
       <nav style="display: flex; gap: 12px;">
-        <router-link :to="overviewLink">概要</router-link>
         <router-link to="/admin">選挙データ管理</router-link>
       </nav>
     </header>
