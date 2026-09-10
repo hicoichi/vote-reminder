@@ -142,9 +142,19 @@ th, td {
 
 .address-line {
   font-size: 0.8em;
-  opacity: 0.55;
-  text-align: right;
   margin: -8px 0 16px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.address-line-text {
+  opacity: 0.55;
+}
+
+.address-line button.secondary {
+  padding: 2px 8px;
 }
 
 .badge {

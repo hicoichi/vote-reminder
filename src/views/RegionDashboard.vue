@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from "vue"
-import { getRegion } from "../logic/regions.js"
+import { getRegion, updateRegion } from "../logic/regions.js"
 import { listElectionsForRegion, nextElectionForRegion } from "../logic/regionElections.js"
 import { getElectionDetail } from "../logic/electionDetail.js"
 import {
@@ -36,6 +36,36 @@ function reloadRegion() {
 }
 watch(regionId, reloadRegion, { immediate: true })
 watch(regionId, () => { activeTab.value = "overview" })
+
+// --- 地域の変更 ---
+const regionDialog = ref(null)
+const regionZipcodeInput = ref("")
+const regionChangeError = ref("")
+const regionChangeSubmitting = ref(false)
+function openRegionModal() {
+  regionZipcodeInput.value = region.value?.zipcode ?? ""
+  regionChangeError.value = ""
+  regionDialog.value?.showModal()
+}
+function closeRegionModal() {
+  regionDialog.value?.close()
+}
+function handleRegionDialogClick(event) {
+  if (event.target === event.currentTarget) closeRegionModal()
+}
+async function submitRegionChange() {
+  regionChangeError.value = ""
+  regionChangeSubmitting.value = true
+  try {
+    await updateRegion(regionId.value, regionZipcodeInput.value)
+    reloadRegion()
+    closeRegionModal()
+  } catch (e) {
+    regionChangeError.value = e.message
+  } finally {
+    regionChangeSubmitting.value = false
+  }
+}
 
 // --- 対象の選挙（投票記録タブで利用） ---
 const selectedElectionId = ref("")
@@ -340,8 +370,30 @@ function markVotedNow() {
     </section>
 
     <p v-show="activeTab === 'overview'" class="address-line">
-      登録地域: {{ region.zipcode }} {{ region.prefecture }}{{ region.city }}{{ region.town }}
+      <span class="address-line-text">
+        登録地域: {{ region.zipcode }} {{ region.prefecture }}{{ region.city }}{{ region.town }}
+      </span>
+      <button type="button" class="secondary" @click="openRegionModal">変更する</button>
     </p>
+
+    <dialog ref="regionDialog" class="places-dialog" @click="handleRegionDialogClick">
+      <div class="modal-body">
+        <div class="modal-head">
+          <h3>地域を変更する</h3>
+          <button type="button" class="modal-close" @click="closeRegionModal">×</button>
+        </div>
+        <form @submit.prevent="submitRegionChange">
+          <div class="field">
+            <label for="region-zipcode">郵便番号</label>
+            <input id="region-zipcode" v-model="regionZipcodeInput" placeholder="100-0001" required />
+          </div>
+          <p v-if="regionChangeError" class="error">{{ regionChangeError }}</p>
+          <button type="submit" :disabled="regionChangeSubmitting">
+            {{ regionChangeSubmitting ? "変更中…" : "変更する" }}
+          </button>
+        </form>
+      </div>
+    </dialog>
 
     <dialog ref="commonDialog" class="places-dialog" @click="handleCommonDialogClick">
       <div class="modal-body">
