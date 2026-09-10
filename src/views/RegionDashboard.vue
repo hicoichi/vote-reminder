@@ -92,13 +92,21 @@ function earlyVotingRange(electionId) {
   }
 }
 
-// --- 期日前投票所の場所一覧の展開表示 ---
-const expandedElectionIds = ref(new Set())
-function togglePlaces(electionId) {
-  const next = new Set(expandedElectionIds.value)
-  if (next.has(electionId)) next.delete(electionId)
-  else next.add(electionId)
-  expandedElectionIds.value = next
+// --- 期日前投票所の場所一覧モーダル ---
+const placesDialog = ref(null)
+const modalElectionId = ref(null)
+const modalElection = computed(() =>
+  modalElectionId.value ? electionsForRegion.value.find((e) => e.id === modalElectionId.value) ?? null : null
+)
+function openPlacesModal(electionId) {
+  modalElectionId.value = electionId
+  placesDialog.value?.showModal()
+}
+function closePlacesModal() {
+  placesDialog.value?.close()
+}
+function handleDialogClick(event) {
+  if (event.target === event.currentTarget) closePlacesModal()
 }
 
 // --- 投票記録 ---
@@ -153,23 +161,11 @@ function markVotedNow() {
               <div class="hero-value hero-value--sub">
                 {{ earlyVotingRange(nextElection.id).start }}〜{{ earlyVotingRange(nextElection.id).end }}
               </div>
-              <button type="button" class="secondary" @click="togglePlaces(nextElection.id)">
-                {{ expandedElectionIds.has(nextElection.id) ? "場所を閉じる" : "場所を見る" }}
-              </button>
+              <button type="button" class="secondary" @click="openPlacesModal(nextElection.id)">場所を見る</button>
             </template>
             <div v-else class="hero-value hero-value--sub">登録されていません</div>
           </div>
         </div>
-        <table v-if="expandedElectionIds.has(nextElection.id)" style="margin-top: 12px;">
-          <thead><tr><th>投票所</th><th>期間</th><th>受付時間</th></tr></thead>
-          <tbody>
-            <tr v-for="p in earlyVotingByElection[nextElection.id]" :key="p.id">
-              <td>{{ p.name }}（{{ p.address }}）</td>
-              <td>{{ p.period_start }}〜{{ p.period_end }}</td>
-              <td>{{ p.open_time }}〜{{ p.close_time }}</td>
-            </tr>
-          </tbody>
-        </table>
       </div>
       <p v-else>次回の選挙は登録されていません。</p>
 
@@ -186,27 +182,35 @@ function markVotedNow() {
                 <span>投票日: {{ e.vote_date }}</span>
                 <template v-if="earlyVotingRange(e.id)">
                   <span>期日前: {{ earlyVotingRange(e.id).start }}〜{{ earlyVotingRange(e.id).end }}</span>
-                  <button type="button" class="secondary" @click="togglePlaces(e.id)">
-                    {{ expandedElectionIds.has(e.id) ? "場所を閉じる" : "場所を見る" }}
-                  </button>
+                  <button type="button" class="secondary" @click="openPlacesModal(e.id)">場所を見る</button>
                 </template>
                 <span v-else>期日前投票所は登録されていません</span>
               </div>
             </div>
-            <table v-if="expandedElectionIds.has(e.id)" style="margin-top: 8px;">
-              <thead><tr><th>投票所</th><th>期間</th><th>受付時間</th></tr></thead>
-              <tbody>
-                <tr v-for="p in earlyVotingByElection[e.id]" :key="p.id">
-                  <td>{{ p.name }}（{{ p.address }}）</td>
-                  <td>{{ p.period_start }}〜{{ p.period_end }}</td>
-                  <td>{{ p.open_time }}〜{{ p.close_time }}</td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </template>
     </section>
+
+    <dialog ref="placesDialog" class="places-dialog" @click="handleDialogClick" @close="modalElectionId = null">
+      <div class="modal-body">
+        <div class="modal-head">
+          <h3>期日前投票所<template v-if="modalElection">（{{ modalElection.name }}）</template></h3>
+          <button type="button" class="modal-close" @click="closePlacesModal">×</button>
+        </div>
+        <table v-if="modalElection && (earlyVotingByElection[modalElection.id]?.length ?? 0) > 0">
+          <thead><tr><th>投票所</th><th>期間</th><th>受付時間</th></tr></thead>
+          <tbody>
+            <tr v-for="p in earlyVotingByElection[modalElection.id]" :key="p.id">
+              <td>{{ p.name }}（{{ p.address }}）</td>
+              <td>{{ p.period_start }}〜{{ p.period_end }}</td>
+              <td>{{ p.open_time }}〜{{ p.close_time }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else>期日前投票所は登録されていません。</p>
+      </div>
+    </dialog>
 
     <section v-show="activeTab === 'overview'">
       <h2>あなたの投票所（当日）</h2>
