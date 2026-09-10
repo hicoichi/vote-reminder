@@ -130,11 +130,10 @@ function markVotedNow() {
 
     <section v-show="activeTab === 'overview'">
       <h2>登録地域</h2>
+      <h3>住所</h3>
       <p>{{ region.zipcode }} / {{ region.prefecture }}{{ region.city }}{{ region.town }}</p>
-    </section>
 
-    <section v-show="activeTab === 'overview'">
-      <h2>投票所（当日）</h2>
+      <h3 style="margin-top: 12px;">投票所（当日）</h3>
       <template v-if="pollingPlace">
         <p>{{ pollingPlace.name }}（{{ pollingPlace.address }}）</p>
         <p>受付時間: {{ pollingPlace.open_time }}〜{{ pollingPlace.close_time }}</p>
