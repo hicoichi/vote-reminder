@@ -20,7 +20,7 @@ const region = ref(null)
 const loadError = ref("")
 
 const tabs = [
-  { id: "overview", label: "概要" },
+  { id: "overview", label: "ホーム" },
   { id: "voteRecords", label: "投票済み選挙" },
 ]
 const activeTab = ref("overview")
