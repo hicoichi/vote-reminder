@@ -134,9 +134,22 @@ function markVotedNow() {
     </section>
 
     <section v-show="activeTab === 'overview'">
-      <h2>次回の選挙</h2>
+      <h2>投票所（当日）</h2>
+      <template v-if="pollingPlace">
+        <p>{{ pollingPlace.name }}（{{ pollingPlace.address }}）</p>
+        <p>受付時間: {{ pollingPlace.open_time }}〜{{ pollingPlace.close_time }}</p>
+        <p>
+          <a :href="pollingPlace.map_url" target="_blank" rel="noopener">地図で見る</a> /
+          <a :href="pollingPlace.route_url" target="_blank" rel="noopener">経路を調べる</a>
+        </p>
+      </template>
+      <p v-else>この地域の投票所はまだ登録されていません。</p>
+    </section>
+
+    <section v-show="activeTab === 'overview'">
+      <h2>選挙情報</h2>
       <p v-if="nextElection">
-        {{ nextElection.name }}（{{ nextElection.election_type }}） 投票日: {{ nextElection.vote_date }}
+        次回の選挙: {{ nextElection.name }}（{{ nextElection.election_type }}） 投票日: {{ nextElection.vote_date }}
       </p>
       <p v-else>次回の選挙は登録されていません。</p>
 
@@ -162,11 +175,28 @@ function markVotedNow() {
         </tbody>
       </table>
       <p v-else>実施予定の選挙はありません。</p>
-      <div v-if="selectedDetail" style="margin-top: 8px;">
-        <strong>{{ selectedDetail.name }}</strong>
-        ／公示・告示日: {{ selectedDetail.announcement_date }}
-        ／投票時間: {{ selectedDetail.vote_start_time }}〜{{ selectedDetail.vote_end_time }}
-        ／投票日まであと{{ selectedDetail.days_until_vote }}日
+
+      <div v-if="selectedDetail" class="field" style="margin-top: 12px;">
+        <h3>{{ selectedDetail.name }}</h3>
+        <p>
+          公示・告示日: {{ selectedDetail.announcement_date }}
+          ／投票時間: {{ selectedDetail.vote_start_time }}〜{{ selectedDetail.vote_end_time }}
+          ／投票日まであと{{ selectedDetail.days_until_vote }}日
+        </p>
+
+        <h4>期日前投票所</h4>
+        <p v-if="earlyVotingError" class="error">{{ earlyVotingError }}</p>
+        <table v-else-if="earlyVotingPlaces.length > 0">
+          <thead><tr><th>投票所</th><th>期間</th><th>受付時間</th></tr></thead>
+          <tbody>
+            <tr v-for="p in earlyVotingPlaces" :key="p.id">
+              <td>{{ p.name }}（{{ p.address }}）</td>
+              <td>{{ p.period_start }}〜{{ p.period_end }}</td>
+              <td>{{ p.open_time }}〜{{ p.close_time }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else>期日前投票所は登録されていません。</p>
       </div>
     </section>
 
@@ -180,37 +210,6 @@ function markVotedNow() {
         <input v-model="notifySettingForm.daysBefore" />
       </div>
       <button type="button" @click="saveNotifySetting">設定を保存</button>
-    </section>
-
-    <section v-show="activeTab === 'overview'">
-      <h2>投票所</h2>
-      <h3>当日</h3>
-      <template v-if="pollingPlace">
-        <p>{{ pollingPlace.name }}（{{ pollingPlace.address }}）</p>
-        <p>受付時間: {{ pollingPlace.open_time }}〜{{ pollingPlace.close_time }}</p>
-        <p>
-          <a :href="pollingPlace.map_url" target="_blank" rel="noopener">地図で見る</a> /
-          <a :href="pollingPlace.route_url" target="_blank" rel="noopener">経路を調べる</a>
-        </p>
-      </template>
-      <p v-else>この地域の投票所はまだ登録されていません。</p>
-
-      <h3 style="margin-top: 12px;">
-        期日前投票<template v-if="selectedDetail">（{{ selectedDetail.name }}）</template>
-      </h3>
-      <p v-if="!selectedDetail">上の「関係する選挙一覧」から選挙を選ぶと期日前投票所が表示されます。</p>
-      <p v-else-if="earlyVotingError" class="error">{{ earlyVotingError }}</p>
-      <table v-else-if="earlyVotingPlaces.length > 0">
-        <thead><tr><th>投票所</th><th>期間</th><th>受付時間</th></tr></thead>
-        <tbody>
-          <tr v-for="p in earlyVotingPlaces" :key="p.id">
-            <td>{{ p.name }}（{{ p.address }}）</td>
-            <td>{{ p.period_start }}〜{{ p.period_end }}</td>
-            <td>{{ p.open_time }}〜{{ p.close_time }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p v-else>期日前投票所は登録されていません。</p>
     </section>
 
     <section v-show="activeTab === 'voteRecords'">
