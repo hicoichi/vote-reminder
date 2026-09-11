@@ -26,10 +26,10 @@ async function onRegister() {
   <section>
     <h2>地域を登録する</h2>
     <p>郵便番号を登録すると、自分に関係する選挙が自動で判定されます。</p>
-    <form @submit.prevent="onRegister" style="display: flex; gap: 8px; align-items: flex-end;">
-      <div class="field" style="margin-bottom: 0;">
+    <form @submit.prevent="onRegister" style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="field" style="margin-bottom: 0; flex: 1; min-width: 0;">
         <label for="zipcode">郵便番号</label>
-        <input id="zipcode" v-model="zipcode" placeholder="100-0001" required />
+        <input id="zipcode" v-model="zipcode" placeholder="100-0001" required style="width: 100%;" />
       </div>
       <button type="submit" :disabled="submitting">{{ submitting ? "登録中…" : "登録する" }}</button>
     </form>
